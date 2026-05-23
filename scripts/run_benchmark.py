@@ -10,12 +10,107 @@ import time
 from datetime import datetime, timezone
 
 import torch
+import torch.nn as nn
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from profiler.hook_profiler import HookProfiler
+from kernels.fused_fp4_gemv import fused_fp4_gemv_triton
+from phase3_utils import extract_linear4bit_artifacts, Linear4bitArtifacts
+
+
+# ── Fused kernel wrapper ──────────────────────────────────────────────────────
+
+class FusedFP4Linear(nn.Module):
+    """Wraps a bitsandbytes Linear4bit layer, using our Triton fused kernel.
+
+    替换 k_proj / v_proj：读 packed uint8 → 在 GPU 片上 dequant → 做 GEMV。
+    不走 bitsandbytes 的"写回 VRAM 再读"流程，消除 VRAM round-trip。
+    """
+
+    def __init__(self, artifacts: Linear4bitArtifacts):
+        super().__init__()
+        self.in_features = artifacts.in_features
+        self.out_features = artifacts.out_features
+        self.blocksize = artifacts.blocksize
+        # register_buffer 让 PyTorch 知道这些 tensor（自动跟随 .cuda() / .to() 等）
+        self.register_buffer("packed_weight", artifacts.packed_weight.clone())
+        self.register_buffer("absmax", artifacts.absmax.clone())
+        self.register_buffer("code", artifacts.code.clone())
+        if artifacts.bias is not None:
+            self.register_buffer("bias_vec", artifacts.bias.clone())
+        else:
+            self.bias_vec = None
+
+    def _make_artifacts(self) -> Linear4bitArtifacts:
+        """把 buffer 重新包装成 kernel 期望的 artifacts 对象。"""
+        return Linear4bitArtifacts(
+            layer_path="",
+            in_features=self.in_features,
+            out_features=self.out_features,
+            packed_weight=self.packed_weight,
+            bias=self.bias_vec,
+            absmax=self.absmax,
+            code=self.code,
+            blocksize=self.blocksize,
+            quant_type="fp4",
+            quant_dtype="bfloat16",
+            weight_device=str(self.packed_weight.device),
+            packed_weight_shape=tuple(self.packed_weight.shape),
+            logical_weight_shape=(self.out_features, self.in_features),
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # x 的形状一般是 [batch, seq, in_features]
+        # decode 阶段 batch=1, seq=1；prefill 阶段 seq 可能 > 1
+        orig_dtype = x.dtype
+        orig_shape = x.shape
+
+        # kernel 用 float16 计算，先统一转换（模型可能用 bfloat16）
+        if x.dtype != torch.float16:
+            x = x.to(torch.float16)
+        x_flat = x.reshape(-1, self.in_features)  # 展平为 [n, in_features]
+
+        artifacts = self._make_artifacts()
+        outputs = torch.empty(
+            x_flat.shape[0], self.out_features,
+            device=x.device, dtype=torch.float16,
+        )
+        for i in range(x_flat.shape[0]):
+            outputs[i] = fused_fp4_gemv_triton(artifacts, x_flat[i])
+
+        result = outputs.reshape(*orig_shape[:-1], self.out_features)
+        # 转回原始 dtype，确保和模型其他层一致
+        return result.to(orig_dtype)
+
+
+def replace_kv_proj_with_fused(model: nn.Module) -> nn.Module:
+    """遍历模型，把所有 k_proj / v_proj 的 Linear4bit 替换成 FusedFP4Linear。"""
+    replaced = 0
+    for name, module in list(model.named_modules()):
+        if not (name.endswith(".k_proj") or name.endswith(".v_proj")):
+            continue
+        if module.__class__.__name__ != "Linear4bit":
+            continue
+
+        # 找到父模块
+        parts = name.split(".")
+        parent = model
+        for part in parts[:-1]:
+            parent = parent[int(part)] if part.isdigit() else getattr(parent, part)
+
+        artifacts = extract_linear4bit_artifacts(module, name)
+        setattr(parent, parts[-1], FusedFP4Linear(artifacts))
+        replaced += 1
+
+    print(f"Replaced {replaced} k_proj/v_proj layers with FusedFP4Linear")
+    return model
+
+
+# ── Model loading ─────────────────────────────────────────────────────────────
+
 def load_model(model_id: str, quantization: str):
     """Load model in FP16 or INT4."""
     print(f"Loading {model_id} in {quantization}...")
@@ -37,6 +132,18 @@ def load_model(model_id: str, quantization: str):
             quantization_config=bnb_config,
             device_map="cuda",
         )
+    elif quantization == "int4-fused-kv":
+        # INT4 모델을 로드한 후, k_proj/v_proj만 우리 Triton kernel로 교체
+        bnb_config = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_compute_dtype=torch.float16,
+        )
+        model = AutoModelForCausalLM.from_pretrained(
+            model_id,
+            quantization_config=bnb_config,
+            device_map="cuda",
+        )
+        replace_kv_proj_with_fused(model)
     else:
         raise ValueError(f"Unknown quantization: {quantization}")
 
@@ -147,7 +254,7 @@ def main():
     parser = argparse.ArgumentParser(description="LLM Quantization Tax Profiler")
     parser.add_argument("--model", default="Qwen/Qwen2.5-1.5B-Instruct",
                         help="HuggingFace model ID")
-    parser.add_argument("--quantization", choices=["fp16", "int4"], default="fp16",
+    parser.add_argument("--quantization", choices=["fp16", "int4", "int4-fused-kv"], default="fp16",
                         help="Quantization mode")
     parser.add_argument("--prompt-len", type=int, default=512,
                         help="Prompt length in tokens for prefill")

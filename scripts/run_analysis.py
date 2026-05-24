@@ -1,4 +1,5 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """Generate Phase 2 charts and a bilingual Markdown report."""
 
 from __future__ import annotations
@@ -142,12 +143,12 @@ def write_report(
         "_Memory growth remains nearly flat across decode steps; the main story is the lower VRAM baseline of INT4 rather than a growing cache bottleneck._  ",
         "_Decode 过程中显存曲线整体较平，说明这次实验的主要现象不是 KV cache 增长，而是 INT4 的更低显存基线。_",
         "",
-        "### Figure 3 / 图 3: Top-10 slowest decode layers",
+        "### Figure 3 / 图 3: Top-10 decode layers by relative slowdown",
         "",
         f"![Figure 3]({fig3_rel})",
         "",
-        "_The slowest decode layers are dominated by attention projections, which is consistent with the small-matrix / dequant-overhead hypothesis._  ",
-        "_最慢的 decode 层主要被 attention 投影层占据，这与“小矩阵 + dequant 固定开销”这一假设一致。_",
+        "_The 10 decode layers with the largest relative slowdown under INT4 are all k_proj and v_proj attention projections. Qwen2.5-1.5B uses GQA, so these projections output only 256 features vs. 1536 for other projections — fewer FLOPs, same dequantization overhead, larger percentage impact._  ",
+        "_INT4 相对降幅最大的 10 个 decode 层全部是 k_proj 和 v_proj。Qwen2.5-1.5B 使用 GQA，这两种投影的输出维度只有 256，而其他投影为 1536——FLOPs 更少，dequant 固定开销相同，因此百分比影响更大。_",
         "",
         "### Figure 4 / 图 4: Roofline",
         "",

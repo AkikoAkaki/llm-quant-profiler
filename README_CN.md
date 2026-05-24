@@ -31,7 +31,7 @@ Decode 是目标工作负载。融合内核面向 GEMV（seq=1）设计；Prefil
 
 算术强度越低，在内存受限的 GPU 上执行越慢——decode 阶段始终处于内存受限区间（RTX 4060 Laptop 脊点：80 FLOP/Byte）。
 
-最惨的层是 `k_proj` 和 `v_proj`。Qwen2.5-1.5B 使用 GQA（Grouped Query Attention），这两个投影的输出维度只有 256，而其他投影是 1536。FLOP 少、去量化开销相同 → **每层比 FP16 慢 8–12 倍**。
+最惨的层是 `k_proj` 和 `v_proj`。Qwen2.5-1.5B 使用 GQA（Grouped Query Attention），这两个投影的输出维度只有 256，而其他投影是 1536。FLOP 少、去量化开销相同 → **每层最高比 FP16 慢约 380%（4–5 倍）**。
 
 ![各层延迟对比：FP16 vs INT4 decode](outputs/fig1_layerwise_latency.png)
 ![Roofline 分析](outputs/fig4_roofline.png)

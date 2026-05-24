@@ -32,7 +32,7 @@ Profiling is consistent with extra global-memory traffic associated with INT4 de
 
 Lower arithmetic intensity means slower execution when the GPU is memory-bound — which decode always is (ridge point: 80 FLOP/Byte on RTX 4060 Laptop).
 
-The worst offenders are `k_proj` and `v_proj`. Qwen2.5-1.5B uses GQA (Grouped Query Attention), so these projections output only 256 features vs. 1536 for other projections. Fewer FLOPs, same dequantization overhead → **8–12× slower than FP16** per layer.
+The worst offenders are `k_proj` and `v_proj`. Qwen2.5-1.5B uses GQA (Grouped Query Attention), so these projections output only 256 features vs. 1536 for other projections. Fewer FLOPs, same dequantization overhead → **up to ~380% (4–5×) slower than FP16** per layer.
 
 ![Per-layer latency: FP16 vs INT4 decode](outputs/fig1_layerwise_latency.png)
 ![Roofline analysis](outputs/fig4_roofline.png)

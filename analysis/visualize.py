@@ -307,7 +307,7 @@ def plot_memory_growth(dfs: dict[str, pd.DataFrame], output_dir: str):
 
 
 def plot_top10_slowest(dfs: dict[str, pd.DataFrame], output_dir: str):
-    """Figure 3: top-10 slowest decode layers with error bars."""
+    """Figure 3: top-10 decode layers by relative slowdown (INT4 vs FP16)."""
     output_dir = Path(output_dir)
     if "fp16_decode" not in dfs or "int4_decode" not in dfs:
         print("Skipping Top-10 chart: decode data missing.")
@@ -316,11 +316,11 @@ def plot_top10_slowest(dfs: dict[str, pd.DataFrame], output_dir: str):
     fp16 = aggregate_layer_timings(dfs["fp16_decode"])[["layer_name", "time_ms_mean", "time_ms_std"]]
     int4 = aggregate_layer_timings(dfs["int4_decode"])[["layer_name", "time_ms_mean", "time_ms_std"]]
     combined = fp16.merge(int4, on="layer_name", suffixes=("_fp16", "_int4"))
-    combined["max_time_mean"] = combined[["time_ms_mean_fp16", "time_ms_mean_int4"]].max(axis=1)
-    top10 = combined.nlargest(10, "max_time_mean").sort_values("max_time_mean")
+    combined["slowdown_pct"] = (combined["time_ms_mean_int4"] / combined["time_ms_mean_fp16"] - 1.0) * 100.0
+    top10 = combined[combined["slowdown_pct"] > 0].nlargest(10, "slowdown_pct").sort_values("slowdown_pct")
 
     fig, ax = plt.subplots(figsize=(10, 6))
-    fig.suptitle("Top-10 Slowest Decode Layers (mean ± std)", fontsize=12, fontweight="bold")
+    fig.suptitle("Top-10 Decode Layers by Relative Slowdown: INT4 vs FP16 (mean ± std)", fontsize=12, fontweight="bold")
 
     y = np.arange(len(top10))
     height = 0.35

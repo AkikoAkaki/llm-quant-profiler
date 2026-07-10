@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import random
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -43,6 +44,10 @@ def benchmark_command(
     warmups: int,
     repeats: int,
     local_files_only: bool,
+    max_idle_gpu_util: float,
+    idle_samples: int,
+    idle_timeout_s: float,
+    cooldown_s: float,
 ) -> list[str]:
     command = [
         sys.executable,
@@ -57,6 +62,10 @@ def benchmark_command(
         "--run-id", f"{mode}_{measurement_mode}",
         "--output-dir", str(output_dir),
         "--metadata-path", str(output_dir / "benchmark_metadata.json"),
+        "--max-idle-gpu-util", str(max_idle_gpu_util),
+        "--idle-samples", str(idle_samples),
+        "--idle-timeout-s", str(idle_timeout_s),
+        "--cooldown-s", str(cooldown_s),
     ]
     if local_files_only:
         command.append("--local-files-only")
@@ -69,10 +78,15 @@ def main():
     parser.add_argument("--model", default="Qwen/Qwen2.5-1.5B-Instruct")
     parser.add_argument("--prompt-len", type=int, default=512)
     parser.add_argument("--max-new-tokens", type=int, default=128)
-    parser.add_argument("--e2e-warmups", type=int, default=2)
-    parser.add_argument("--e2e-repeats", type=int, default=5)
+    parser.add_argument("--e2e-warmups", type=int, default=3)
+    parser.add_argument("--e2e-repeats", type=int, default=7)
     parser.add_argument("--profile-warmups", type=int, default=1)
     parser.add_argument("--profile-repeats", type=int, default=3)
+    parser.add_argument("--max-idle-gpu-util", type=float, default=15.0)
+    parser.add_argument("--idle-samples", type=int, default=3)
+    parser.add_argument("--idle-timeout-s", type=float, default=120.0)
+    parser.add_argument("--cooldown-s", type=float, default=3.0)
+    parser.add_argument("--mode-order-seed", type=int, default=20260711)
     parser.add_argument("--data-root", default="data/phase3")
     parser.add_argument("--output-dir", default="outputs")
     parser.add_argument("--canonical-json", default="results/canonical.json")
@@ -89,6 +103,9 @@ def main():
     canonical_json = (repo_root / args.canonical_json).resolve()
     report_path = (repo_root / args.report_path).resolve()
 
+    e2e_modes = list(MODES)
+    random.Random(args.mode_order_seed).shuffle(e2e_modes)
+
     manifest = {
         "schema_version": 2,
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
@@ -100,11 +117,17 @@ def main():
         "profile_warmups": args.profile_warmups,
         "profile_repeats": args.profile_repeats,
         "modes": list(MODES),
+        "e2e_mode_order": e2e_modes,
+        "mode_order_seed": args.mode_order_seed,
+        "max_idle_gpu_util_pct": args.max_idle_gpu_util,
+        "idle_samples": args.idle_samples,
+        "idle_timeout_s": args.idle_timeout_s,
+        "cooldown_s": args.cooldown_s,
         "local_files_only": bool(args.local_files_only),
         "run_root": str(run_root),
     }
 
-    for mode in MODES:
+    for mode in e2e_modes:
         mode_dir = e2e_root / mode
         mode_dir.mkdir(parents=True, exist_ok=True)
         run_checked(
@@ -119,6 +142,10 @@ def main():
                 args.e2e_warmups,
                 args.e2e_repeats,
                 args.local_files_only,
+                args.max_idle_gpu_util,
+                args.idle_samples,
+                args.idle_timeout_s,
+                args.cooldown_s,
             ),
             repo_root,
         )
@@ -138,6 +165,10 @@ def main():
                 args.profile_warmups,
                 args.profile_repeats,
                 args.local_files_only,
+                args.max_idle_gpu_util,
+                args.idle_samples,
+                args.idle_timeout_s,
+                args.cooldown_s,
             ),
             repo_root,
         )

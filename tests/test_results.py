@@ -1,6 +1,6 @@
 import unittest
 
-from analysis.results import build_canonical_result, summarize_values
+from analysis.results import build_canonical_result, summarize_stability, summarize_values
 
 
 def e2e_entry(mode, decode_s, peak_mb):
@@ -74,6 +74,52 @@ class ResultsTests(unittest.TestCase):
                 ],
                 [],
             )
+
+    def test_build_canonical_result_rejects_unstable_decode(self):
+        fp16 = e2e_entry("fp16", 10.0, 3000.0)
+        fp16["runs"] = [
+            {**fp16["runs"][0], "run_index": index + 1, "decode_time_s": value}
+            for index, value in enumerate([10.0, 10.0, 10.0, 30.0, 30.0])
+        ]
+        fp16["summary"]["decode_time_s"] = summarize_values(
+            [run["decode_time_s"] for run in fp16["runs"]]
+        )
+        with self.assertRaisesRegex(ValueError, "unstable canonical E2E"):
+            build_canonical_result(
+                [
+                    fp16,
+                    e2e_entry("int4", 12.0, 1200.0),
+                    e2e_entry("int4-fused-kv", 15.0, 1250.0),
+                ],
+                [],
+            )
+
+    def test_build_canonical_result_allows_one_tukey_outlier_in_seven_runs(self):
+        fp16 = e2e_entry("fp16", 10.0, 3000.0)
+        fp16["runs"] = [
+            {**fp16["runs"][0], "run_index": index + 1, "decode_time_s": value}
+            for index, value in enumerate([10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 20.0])
+        ]
+        fp16["summary"]["decode_time_s"] = summarize_values(
+            [run["decode_time_s"] for run in fp16["runs"]]
+        )
+        result = build_canonical_result(
+            [
+                fp16,
+                e2e_entry("int4", 12.0, 1200.0),
+                e2e_entry("int4-fused-kv", 15.0, 1250.0),
+            ],
+            [],
+        )
+        stability = result["stability"]["by_mode"]["fp16"]
+        self.assertEqual(stability["outlier_count"], 1)
+        self.assertEqual(stability["retained_count"], 6)
+        self.assertLess(stability["outlier_fraction_pct"], 15.0)
+
+    def test_stability_rejects_one_tukey_outlier_in_five_runs(self):
+        stability = summarize_stability([10.0, 10.0, 10.0, 10.0, 20.0])
+        self.assertEqual(stability["outlier_count"], 1)
+        self.assertGreater(stability["outlier_fraction_pct"], 15.0)
 
 
 if __name__ == "__main__":

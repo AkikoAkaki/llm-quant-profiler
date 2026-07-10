@@ -67,6 +67,7 @@ def write_report(
     config = canonical["config"]
     modes = canonical["modes"]
     comparisons = canonical["comparisons"]
+    stability = canonical["stability"]
     environment = canonical["environment_by_mode"]["fp16"]
 
     int4_delta = comparisons["int4_decode_latency_change_vs_fp16_pct"]
@@ -91,9 +92,18 @@ def write_report(
         f"- Prompt length: `{config['prompt_len']}` tokens",
         f"- Decode length: `{config['max_new_tokens']}` fixed steps",
         f"- E2E protocol: `{config['warmup_runs']}` warmups + `{config['repeats']}` measured runs per mode",
+        "- Stability gate: Tukey outliers at most "
+        f"`{stability['policy']['max_outlier_fraction_pct']:.1f}%`, retained decode CV at most "
+        f"`{stability['policy']['max_retained_decode_cv_pct']:.1f}%`, and IQR/median at most "
+        f"`{stability['policy']['max_iqr_over_median_pct']:.1f}%`",
         f"- Python / PyTorch / CUDA: `{environment['python_version']}` / `{environment['torch_version']}` / `{environment['torch_cuda_version']}`",
         f"- Transformers / bitsandbytes / Triton: `{environment['transformers_version']}` / `{environment['bitsandbytes_version']}` / `{environment['triton_version']}`",
         f"- NVIDIA driver: `{environment['nvidia_driver_version']}`",
+        "- Retained decode CV by mode: "
+        + ", ".join(
+            f"`{mode}` {stability['by_mode'][mode]['retained_cv_pct']:.1f}%"
+            for mode in MODE_ORDER
+        ),
         "",
         "## Canonical End-to-End Results",
         "",
@@ -203,18 +213,18 @@ def main():
     if not dfs:
         raise SystemExit(f"no profile CSV files found under {profile_dir}")
 
-    output_dir.mkdir(parents=True, exist_ok=True)
-    plot_layerwise_latency(dfs, str(output_dir))
-    plot_memory_growth(dfs, str(output_dir))
-    plot_top10_slowest(dfs, str(output_dir))
-    plot_roofline(dfs, str(output_dir))
-
     profile_summary = compute_summary_stats(dfs)
     tax_layers = compute_quant_tax_layers(dfs)
     canonical = build_canonical_result(
         e2e_metadata,
         profile_summary.to_dict(orient="records"),
     )
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    plot_layerwise_latency(dfs, str(output_dir))
+    plot_memory_growth(dfs, str(output_dir))
+    plot_top10_slowest(dfs, str(output_dir))
+    plot_roofline(dfs, str(output_dir))
     canonical_path.parent.mkdir(parents=True, exist_ok=True)
     canonical_path.write_text(
         json.dumps(canonical, indent=2, ensure_ascii=False),

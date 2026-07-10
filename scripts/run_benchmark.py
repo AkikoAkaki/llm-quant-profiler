@@ -248,10 +248,107 @@ def _command_output(command: list[str]) -> str | None:
         return None
 
 
+def _parse_gpu_number(value: str) -> float | None:
+    cleaned = value.strip().replace("[N/A]", "")
+    if not cleaned:
+        return None
+    try:
+        return float(cleaned)
+    except ValueError:
+        return None
+
+
+def query_gpu_state() -> dict:
+    """Return a lightweight GPU state snapshot outside the timed region."""
+    fields = (
+        "pstate",
+        "temperature.gpu",
+        "clocks.current.graphics",
+        "clocks.current.memory",
+        "power.draw",
+        "utilization.gpu",
+        "memory.used",
+    )
+    output = _command_output(
+        [
+            "nvidia-smi",
+            f"--query-gpu={','.join(fields)}",
+            "--format=csv,noheader,nounits",
+        ]
+    )
+    if not output:
+        raise RuntimeError("nvidia-smi GPU telemetry is unavailable")
+    values = [value.strip() for value in output.splitlines()[0].split(",")]
+    if len(values) != len(fields):
+        raise RuntimeError(f"unexpected nvidia-smi output: {output}")
+    return {
+        "pstate": values[0],
+        "temperature_c": _parse_gpu_number(values[1]),
+        "graphics_clock_mhz": _parse_gpu_number(values[2]),
+        "memory_clock_mhz": _parse_gpu_number(values[3]),
+        "power_w": _parse_gpu_number(values[4]),
+        "utilization_pct": _parse_gpu_number(values[5]),
+        "memory_used_mb": _parse_gpu_number(values[6]),
+    }
+
+
+def wait_for_gpu_idle(
+    max_utilization_pct: float,
+    consecutive_samples: int,
+    timeout_s: float,
+) -> dict:
+    """Require a quiet GPU before entering a timed benchmark region."""
+    deadline = time.monotonic() + timeout_s
+    quiet = 0
+    last_state = None
+    while time.monotonic() < deadline:
+        last_state = query_gpu_state()
+        utilization = last_state["utilization_pct"]
+        if utilization is not None and utilization <= max_utilization_pct:
+            quiet += 1
+            if quiet >= consecutive_samples:
+                return last_state
+        else:
+            quiet = 0
+        time.sleep(1.0)
+    raise RuntimeError(
+        "GPU did not become idle before benchmark: "
+        f"threshold={max_utilization_pct:.1f}% last_state={last_state}"
+    )
+
+
+def _git_dirty(repo_root: Path) -> bool | None:
+    """Ignore platform EOL presentation while detecting real repository changes."""
+    try:
+        tracked = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repo_root),
+                "diff",
+                "--quiet",
+                "--ignore-space-at-eol",
+                "HEAD",
+                "--",
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=10,
+            check=False,
+        )
+        if tracked.returncode not in (0, 1):
+            return None
+        untracked = _command_output(
+            ["git", "-C", str(repo_root), "ls-files", "--others", "--exclude-standard"]
+        )
+        return tracked.returncode == 1 or bool(untracked)
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
 def collect_environment() -> dict:
     repo_root = Path(__file__).resolve().parents[1]
     git_commit = _command_output(["git", "-C", str(repo_root), "rev-parse", "HEAD"])
-    git_status = _command_output(["git", "-C", str(repo_root), "status", "--porcelain"])
     return {
         "host_platform": platform.platform(),
         "python_version": platform.python_version(),
@@ -267,7 +364,7 @@ def collect_environment() -> dict:
             ["nvidia-smi", "--query-gpu=driver_version", "--format=csv,noheader"]
         ),
         "git_commit": git_commit,
-        "git_dirty": bool(git_status),
+        "git_dirty": _git_dirty(repo_root),
     }
 
 
@@ -277,13 +374,29 @@ def write_json(path: Path, payload: dict):
     print(f"Saved metadata: {path}")
 
 
-def run_e2e(model, prompt_ids, max_new_tokens: int, warmups: int, repeats: int):
+def run_e2e(
+    model,
+    prompt_ids,
+    max_new_tokens: int,
+    warmups: int,
+    repeats: int,
+    max_idle_gpu_util: float,
+    idle_samples: int,
+    idle_timeout_s: float,
+    cooldown_s: float,
+):
     for index in range(warmups):
         print(f"Warmup {index + 1}/{warmups}")
+        wait_for_gpu_idle(max_idle_gpu_util, idle_samples, idle_timeout_s)
         run_e2e_iteration(model, prompt_ids, max_new_tokens)
+        if cooldown_s:
+            time.sleep(cooldown_s)
     runs = []
     for index in range(repeats):
+        gpu_before = wait_for_gpu_idle(max_idle_gpu_util, idle_samples, idle_timeout_s)
         result = run_e2e_iteration(model, prompt_ids, max_new_tokens)
+        result["gpu_before"] = gpu_before
+        result["gpu_after"] = query_gpu_state()
         result["run_index"] = index + 1
         runs.append(result)
         print(
@@ -291,6 +404,8 @@ def run_e2e(model, prompt_ids, max_new_tokens: int, warmups: int, repeats: int):
             f"decode={result['decode_time_s']:.3f}s "
             f"throughput={result['decode_throughput_tps']:.2f} tok/s"
         )
+        if cooldown_s and index + 1 < repeats:
+            time.sleep(cooldown_s)
     summary = {
         key: summarize_values([float(run[key]) for run in runs])
         for key in (
@@ -358,6 +473,10 @@ def main():
     parser.add_argument("--max-new-tokens", type=int, default=128)
     parser.add_argument("--warmup-runs", type=int)
     parser.add_argument("--repeats", type=int)
+    parser.add_argument("--max-idle-gpu-util", type=float, default=15.0)
+    parser.add_argument("--idle-samples", type=int, default=3)
+    parser.add_argument("--idle-timeout-s", type=float, default=120.0)
+    parser.add_argument("--cooldown-s", type=float, default=3.0)
     parser.add_argument("--output-dir", default="data")
     parser.add_argument("--run-id", default="single-run")
     parser.add_argument("--metadata-path")
@@ -368,12 +487,14 @@ def main():
         parser.error("--max-new-tokens must be positive")
     warmups = args.warmup_runs
     if warmups is None:
-        warmups = 2 if args.measurement_mode == "e2e" else 1
+        warmups = 3 if args.measurement_mode == "e2e" else 1
     repeats = args.repeats
     if repeats is None:
-        repeats = 5 if args.measurement_mode == "e2e" else 3
-    if warmups < 0 or repeats < 1:
-        parser.error("warmups must be non-negative and repeats must be positive")
+        repeats = 7 if args.measurement_mode == "e2e" else 3
+    if warmups < 0 or repeats < 1 or args.idle_samples < 1:
+        parser.error("warmups must be non-negative; repeats and idle samples must be positive")
+    if args.max_idle_gpu_util < 0 or args.idle_timeout_s <= 0 or args.cooldown_s < 0:
+        parser.error("GPU idle settings must be non-negative and timeout must be positive")
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -390,10 +511,24 @@ def main():
         "warmup_runs": warmups,
         "repeats": repeats,
         "local_files_only": bool(args.local_files_only),
+        "max_idle_gpu_util_pct": args.max_idle_gpu_util,
+        "idle_samples": args.idle_samples,
+        "idle_timeout_s": args.idle_timeout_s,
+        "cooldown_s": args.cooldown_s,
     }
 
     if args.measurement_mode == "e2e":
-        runs, summary = run_e2e(model, prompt_ids, args.max_new_tokens, warmups, repeats)
+        runs, summary = run_e2e(
+            model,
+            prompt_ids,
+            args.max_new_tokens,
+            warmups,
+            repeats,
+            args.max_idle_gpu_util,
+            args.idle_samples,
+            args.idle_timeout_s,
+            args.cooldown_s,
+        )
         payload = {
             "schema_version": 2,
             "measurement_mode": "e2e",

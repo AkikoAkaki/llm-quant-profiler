@@ -1,41 +1,40 @@
 #!/usr/bin/env python3
-"""Main benchmark script: load model, profile prefill + decode, export CSV."""
+"""Run either uninstrumented E2E inference or diagnostic layer profiling."""
+
+from __future__ import annotations
 
 import argparse
+import importlib.metadata
 import json
 import os
 import platform
+import subprocess
 import sys
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 
+import pandas as pd
 import torch
 import torch.nn as nn
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
-# Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from profiler.hook_profiler import HookProfiler
+from analysis.results import summarize_values
 from kernels.fused_fp4_gemv import fused_fp4_gemv_triton
-from phase3_utils import extract_linear4bit_artifacts, Linear4bitArtifacts
+from phase3_utils import Linear4bitArtifacts, extract_linear4bit_artifacts
+from profiler.hook_profiler import HookProfiler
 
-
-# ── Fused kernel wrapper ──────────────────────────────────────────────────────
 
 class FusedFP4Linear(nn.Module):
-    """Wraps a bitsandbytes Linear4bit layer, using our Triton fused kernel.
-
-    替换 k_proj / v_proj：读 packed uint8 → 在 GPU 片上 dequant → 做 GEMV。
-    不走 bitsandbytes 的"写回 VRAM 再读"流程，消除 VRAM round-trip。
-    """
+    """Correctness-first wrapper around the project-local fused FP4 GEMV."""
 
     def __init__(self, artifacts: Linear4bitArtifacts):
         super().__init__()
         self.in_features = artifacts.in_features
         self.out_features = artifacts.out_features
         self.blocksize = artifacts.blocksize
-        # register_buffer 让 PyTorch 知道这些 tensor（自动跟随 .cuda() / .to() 等）
         self.register_buffer("packed_weight", artifacts.packed_weight.clone())
         self.register_buffer("absmax", artifacts.absmax.clone())
         self.register_buffer("code", artifacts.code.clone())
@@ -45,7 +44,6 @@ class FusedFP4Linear(nn.Module):
             self.bias_vec = None
 
     def _make_artifacts(self) -> Linear4bitArtifacts:
-        """把 buffer 重新包装成 kernel 期望的 artifacts 对象。"""
         return Linear4bitArtifacts(
             layer_path="",
             in_features=self.in_features,
@@ -56,295 +54,385 @@ class FusedFP4Linear(nn.Module):
             code=self.code,
             blocksize=self.blocksize,
             quant_type="fp4",
-            quant_dtype="bfloat16",
+            quant_dtype="float16",
             weight_device=str(self.packed_weight.device),
             packed_weight_shape=tuple(self.packed_weight.shape),
             logical_weight_shape=(self.out_features, self.in_features),
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # x 的形状一般是 [batch, seq, in_features]
-        # decode 阶段 batch=1, seq=1；prefill 阶段 seq 可能 > 1
-        orig_dtype = x.dtype
-        orig_shape = x.shape
-
-        # kernel 用 float16 计算，先统一转换（模型可能用 bfloat16）
+        original_dtype = x.dtype
+        original_shape = x.shape
         if x.dtype != torch.float16:
             x = x.to(torch.float16)
-        x_flat = x.reshape(-1, self.in_features)  # 展平为 [n, in_features]
-
+        x_flat = x.reshape(-1, self.in_features)
         artifacts = self._make_artifacts()
         outputs = torch.empty(
-            x_flat.shape[0], self.out_features,
-            device=x.device, dtype=torch.float16,
+            x_flat.shape[0],
+            self.out_features,
+            device=x.device,
+            dtype=torch.float16,
         )
-        for i in range(x_flat.shape[0]):
-            outputs[i] = fused_fp4_gemv_triton(artifacts, x_flat[i])
-
-        result = outputs.reshape(*orig_shape[:-1], self.out_features)
-        # 转回原始 dtype，确保和模型其他层一致
-        return result.to(orig_dtype)
+        for index in range(x_flat.shape[0]):
+            outputs[index] = fused_fp4_gemv_triton(artifacts, x_flat[index])
+        result = outputs.reshape(*original_shape[:-1], self.out_features)
+        return result.to(original_dtype)
 
 
-def replace_kv_proj_with_fused(model: nn.Module) -> nn.Module:
-    """遍历模型，把所有 k_proj / v_proj 的 Linear4bit 替换成 FusedFP4Linear。"""
+def replace_kv_proj_with_fused(model: nn.Module) -> int:
+    """Replace every quantized k/v projection and return the replacement count."""
     replaced = 0
     for name, module in list(model.named_modules()):
         if not (name.endswith(".k_proj") or name.endswith(".v_proj")):
             continue
         if module.__class__.__name__ != "Linear4bit":
             continue
-
-        # 找到父模块
         parts = name.split(".")
         parent = model
         for part in parts[:-1]:
             parent = parent[int(part)] if part.isdigit() else getattr(parent, part)
-
         artifacts = extract_linear4bit_artifacts(module, name)
         setattr(parent, parts[-1], FusedFP4Linear(artifacts))
         replaced += 1
-
     print(f"Replaced {replaced} k_proj/v_proj layers with FusedFP4Linear")
-    return model
+    return replaced
 
 
-# ── Model loading ─────────────────────────────────────────────────────────────
-
-def load_model(model_id: str, quantization: str):
-    """Load model in FP16 or INT4."""
+def load_model(model_id: str, quantization: str, local_files_only: bool = False):
     print(f"Loading {model_id} in {quantization}...")
-    tokenizer = AutoTokenizer.from_pretrained(model_id)
-
+    tokenizer = AutoTokenizer.from_pretrained(
+        model_id,
+        local_files_only=local_files_only,
+    )
     if quantization == "fp16":
         model = AutoModelForCausalLM.from_pretrained(
             model_id,
-            torch_dtype=torch.float16,
+            dtype=torch.float16,
             device_map="cuda",
+            local_files_only=local_files_only,
         )
-    elif quantization == "int4":
-        bnb_config = BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_compute_dtype=torch.float16,
-        )
-        model = AutoModelForCausalLM.from_pretrained(
-            model_id,
-            quantization_config=bnb_config,
-            device_map="cuda",
-        )
-    elif quantization == "int4-fused-kv":
-        # INT4 모델을 로드한 후, k_proj/v_proj만 우리 Triton kernel로 교체
-        bnb_config = BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_compute_dtype=torch.float16,
-        )
-        model = AutoModelForCausalLM.from_pretrained(
-            model_id,
-            quantization_config=bnb_config,
-            device_map="cuda",
-        )
-        replace_kv_proj_with_fused(model)
     else:
-        raise ValueError(f"Unknown quantization: {quantization}")
-
+        config = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_quant_type="fp4",
+            bnb_4bit_compute_dtype=torch.float16,
+        )
+        model = AutoModelForCausalLM.from_pretrained(
+            model_id,
+            quantization_config=config,
+            device_map="cuda",
+            local_files_only=local_files_only,
+        )
+        if quantization == "int4-fused-kv":
+            replace_kv_proj_with_fused(model)
     model.eval()
-    print(f"Model loaded. VRAM used: {torch.cuda.memory_allocated() / 1e6:.0f} MB")
+    print(f"Model loaded. VRAM allocated: {torch.cuda.memory_allocated() / 1e6:.0f} MB")
     return model, tokenizer
 
 
 def make_prompt_ids(tokenizer, target_len: int, device: str = "cuda"):
-    """Create input_ids of approximately target_len tokens."""
-    # Repeat a simple sentence to reach desired length
-    text = "The quick brown fox jumps over the lazy dog. " * (target_len // 8 + 1)
-    ids = tokenizer.encode(text, return_tensors="pt")[:, :target_len].to(device)
-    return ids
+    if target_len < 1:
+        raise ValueError("prompt length must be positive")
+    text = "The quick brown fox jumps over the lazy dog. " * (target_len + 1)
+    ids = tokenizer.encode(text, return_tensors="pt", add_special_tokens=False)
+    if ids.shape[1] < target_len:
+        raise RuntimeError(f"failed to construct a {target_len}-token prompt")
+    return ids[:, :target_len].to(device)
 
 
-def warmup(model, tokenizer, device="cuda"):
-    """Run a short forward pass to warm up CUDA kernels."""
-    print("Warming up...")
-    ids = tokenizer.encode("Hello world", return_tensors="pt").to(device)
-    with torch.no_grad():
-        model.generate(ids, max_new_tokens=5)
+def _decode_steps(model, prefill_outputs, max_new_tokens: int):
+    past_key_values = prefill_outputs.past_key_values
+    next_token = prefill_outputs.logits[:, -1, :].argmax(dim=-1, keepdim=True)
+    for _ in range(max_new_tokens):
+        outputs = model(next_token, past_key_values=past_key_values, use_cache=True)
+        past_key_values = outputs.past_key_values
+        next_token = outputs.logits[:, -1, :].argmax(dim=-1, keepdim=True)
+    return outputs if max_new_tokens else prefill_outputs
+
+
+@torch.inference_mode()
+def run_e2e_iteration(model, prompt_ids, max_new_tokens: int) -> dict:
+    """Measure one fixed-length inference iteration without profiler hooks."""
     torch.cuda.synchronize()
+    torch.cuda.reset_peak_memory_stats()
+
+    started = time.perf_counter()
+    prefill_outputs = model(prompt_ids, use_cache=True)
+    torch.cuda.synchronize()
+    prefill_time_s = time.perf_counter() - started
+
+    started = time.perf_counter()
+    final_outputs = _decode_steps(model, prefill_outputs, max_new_tokens)
+    torch.cuda.synchronize()
+    decode_time_s = time.perf_counter() - started
+
+    result = {
+        "prefill_time_s": prefill_time_s,
+        "decode_time_s": decode_time_s,
+        "decode_steps": max_new_tokens,
+        "decode_throughput_tps": (
+            max_new_tokens / decode_time_s if decode_time_s > 0 else 0.0
+        ),
+        "peak_vram_mb": torch.cuda.max_memory_allocated() / 1e6,
+        "peak_reserved_vram_mb": torch.cuda.max_memory_reserved() / 1e6,
+    }
+    del final_outputs, prefill_outputs
+    return result
 
 
-def run_prefill(model, profiler: HookProfiler, input_ids):
-    """Measure prefill: one forward pass with the full prompt."""
+@torch.inference_mode()
+def run_profile_iteration(
+    model,
+    profiler: HookProfiler,
+    prompt_ids,
+    max_new_tokens: int,
+    run_id: str,
+) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
+    """Collect instrumented per-layer timings for one fixed-length iteration."""
+    profiler.run_id = run_id
+    profiler.clear_records()
     profiler.current_phase = "prefill"
     profiler.current_decode_step = None
     profiler.recording = True
-
-    with torch.no_grad():
-        model(input_ids)
-
+    prefill_outputs = model(prompt_ids, use_cache=True)
     torch.cuda.synchronize()
+    prefill_df = profiler.to_dataframe().copy()
 
-
-def run_decode(model, profiler: HookProfiler, tokenizer, prompt_ids,
-               max_new_tokens: int):
-    """Measure decode: generate tokens one by one.
-
-    Uses manual decode loop so each step triggers hooks individually.
-    """
+    profiler.clear_records()
     profiler.current_phase = "decode"
-    profiler.recording = True
-
-    with torch.no_grad():
-        # First get the KV cache from prefill (unrecorded)
-        profiler.recording = False
-        outputs = model(prompt_ids, use_cache=True)
+    for step in range(max_new_tokens):
+        profiler.current_decode_step = step
+        if step == 0:
+            past_key_values = prefill_outputs.past_key_values
+            next_token = prefill_outputs.logits[:, -1, :].argmax(dim=-1, keepdim=True)
+        outputs = model(next_token, past_key_values=past_key_values, use_cache=True)
         past_key_values = outputs.past_key_values
-        profiler.recording = True
-
-        # Start decoding from the last predicted token
         next_token = outputs.logits[:, -1, :].argmax(dim=-1, keepdim=True)
-
-        for step in range(max_new_tokens):
-            profiler.current_decode_step = step
-            outputs = model(
-                next_token,
-                past_key_values=past_key_values,
-                use_cache=True,
-            )
-            past_key_values = outputs.past_key_values
-            next_token = outputs.logits[:, -1, :].argmax(dim=-1, keepdim=True)
-
-            # Stop on EOS
-            if next_token.item() == tokenizer.eos_token_id:
-                break
-
     torch.cuda.synchronize()
     profiler.current_decode_step = None
+    decode_df = profiler.to_dataframe().copy()
 
-
-def build_phase_summary(df, wall_time_s: float) -> dict:
-    """Summarize one phase from the collected hook records."""
-    if df.empty:
+    def phase_summary(frame: pd.DataFrame) -> dict:
+        if frame.empty:
+            return {"records": 0, "layers": 0, "hook_total_time_ms": 0.0}
         return {
-            "records": 0,
-            "wall_time_s": wall_time_s,
-            "hook_total_time_ms": 0.0,
-            "peak_vram_mb": 0.0,
-            "layer_types": {},
+            "records": int(len(frame)),
+            "layers": int(frame["layer_name"].nunique()),
+            "hook_total_time_ms": float(frame["time_ms"].sum()),
+            "peak_vram_mb": float(frame["mem_peak_mb"].max()),
         }
 
-    return {
-        "records": int(len(df)),
-        "wall_time_s": wall_time_s,
-        "hook_total_time_ms": float(df["time_ms"].sum()),
-        "peak_vram_mb": float(df["mem_peak_mb"].max()),
-        "layer_types": {
-            str(k): int(v) for k, v in df["layer_type"].value_counts().to_dict().items()
-        },
+    return prefill_df, decode_df, {
+        "run_id": run_id,
+        "prefill": phase_summary(prefill_df),
+        "decode": phase_summary(decode_df),
     }
 
 
-def write_metadata(path: str, payload: dict):
-    """Write JSON metadata next to benchmark CSVs."""
-    parent = os.path.dirname(path)
-    if parent:
-        os.makedirs(parent, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(payload, f, indent=2, ensure_ascii=False)
+def _package_version(name: str) -> str | None:
+    try:
+        return importlib.metadata.version(name)
+    except importlib.metadata.PackageNotFoundError:
+        return None
+
+
+def _command_output(command: list[str]) -> str | None:
+    try:
+        return subprocess.check_output(
+            command,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=10,
+        ).strip()
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
+def collect_environment() -> dict:
+    repo_root = Path(__file__).resolve().parents[1]
+    git_commit = _command_output(["git", "-C", str(repo_root), "rev-parse", "HEAD"])
+    git_status = _command_output(["git", "-C", str(repo_root), "status", "--porcelain"])
+    return {
+        "host_platform": platform.platform(),
+        "python_version": platform.python_version(),
+        "torch_version": torch.__version__,
+        "torch_cuda_version": torch.version.cuda,
+        "transformers_version": _package_version("transformers"),
+        "accelerate_version": _package_version("accelerate"),
+        "bitsandbytes_version": _package_version("bitsandbytes"),
+        "triton_version": _package_version("triton"),
+        "gpu_name": torch.cuda.get_device_name(0),
+        "gpu_total_memory_mb": torch.cuda.get_device_properties(0).total_memory / 1e6,
+        "nvidia_driver_version": _command_output(
+            ["nvidia-smi", "--query-gpu=driver_version", "--format=csv,noheader"]
+        ),
+        "git_commit": git_commit,
+        "git_dirty": bool(git_status),
+    }
+
+
+def write_json(path: Path, payload: dict):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"Saved metadata: {path}")
 
 
+def run_e2e(model, prompt_ids, max_new_tokens: int, warmups: int, repeats: int):
+    for index in range(warmups):
+        print(f"Warmup {index + 1}/{warmups}")
+        run_e2e_iteration(model, prompt_ids, max_new_tokens)
+    runs = []
+    for index in range(repeats):
+        result = run_e2e_iteration(model, prompt_ids, max_new_tokens)
+        result["run_index"] = index + 1
+        runs.append(result)
+        print(
+            f"Run {index + 1}/{repeats}: prefill={result['prefill_time_s']:.3f}s "
+            f"decode={result['decode_time_s']:.3f}s "
+            f"throughput={result['decode_throughput_tps']:.2f} tok/s"
+        )
+    summary = {
+        key: summarize_values([float(run[key]) for run in runs])
+        for key in (
+            "prefill_time_s",
+            "decode_time_s",
+            "decode_throughput_tps",
+            "peak_vram_mb",
+            "peak_reserved_vram_mb",
+        )
+    }
+    return runs, summary
+
+
+def run_profile(model, prompt_ids, max_new_tokens: int, warmups: int, repeats: int, run_id: str):
+    for index in range(warmups):
+        print(f"Uninstrumented warmup {index + 1}/{warmups}")
+        run_e2e_iteration(model, prompt_ids, max_new_tokens)
+
+    profiler = HookProfiler(model)
+    profiler.attach()
+    prefill_frames = []
+    decode_frames = []
+    runs = []
+    try:
+        for index in range(repeats):
+            repeat_id = f"{run_id}_rep{index + 1:02d}"
+            prefill_df, decode_df, summary = run_profile_iteration(
+                model,
+                profiler,
+                prompt_ids,
+                max_new_tokens,
+                repeat_id,
+            )
+            prefill_frames.append(prefill_df)
+            decode_frames.append(decode_df)
+            runs.append(summary)
+            print(
+                f"Profile {index + 1}/{repeats}: "
+                f"prefill_records={len(prefill_df)} decode_records={len(decode_df)}"
+            )
+    finally:
+        profiler.detach()
+    return (
+        pd.concat(prefill_frames, ignore_index=True),
+        pd.concat(decode_frames, ignore_index=True),
+        runs,
+    )
+
+
 def main():
-    parser = argparse.ArgumentParser(description="LLM Quantization Tax Profiler")
-    parser.add_argument("--model", default="Qwen/Qwen2.5-1.5B-Instruct",
-                        help="HuggingFace model ID")
-    parser.add_argument("--quantization", choices=["fp16", "int4", "int4-fused-kv"], default="fp16",
-                        help="Quantization mode")
-    parser.add_argument("--prompt-len", type=int, default=512,
-                        help="Prompt length in tokens for prefill")
-    parser.add_argument("--max-new-tokens", type=int, default=128,
-                        help="Number of tokens to generate in decode")
-    parser.add_argument("--output-dir", default="data",
-                        help="Directory for CSV output")
-    parser.add_argument("--run-id", default="single-run",
-                        help="Identifier written to every CSV record")
-    parser.add_argument("--metadata-path",
-                        help="Optional JSON path for benchmark metadata")
+    parser = argparse.ArgumentParser(description="LLM quantization benchmark and profiler")
+    parser.add_argument("--model", default="Qwen/Qwen2.5-1.5B-Instruct")
+    parser.add_argument(
+        "--quantization",
+        choices=["fp16", "int4", "int4-fused-kv"],
+        default="fp16",
+    )
+    parser.add_argument(
+        "--measurement-mode",
+        choices=["e2e", "profile"],
+        default="e2e",
+        help="e2e disables hooks; profile emits diagnostic per-layer CSVs",
+    )
+    parser.add_argument("--prompt-len", type=int, default=512)
+    parser.add_argument("--max-new-tokens", type=int, default=128)
+    parser.add_argument("--warmup-runs", type=int)
+    parser.add_argument("--repeats", type=int)
+    parser.add_argument("--output-dir", default="data")
+    parser.add_argument("--run-id", default="single-run")
+    parser.add_argument("--metadata-path")
+    parser.add_argument("--local-files-only", action="store_true")
     args = parser.parse_args()
 
-    os.makedirs(args.output_dir, exist_ok=True)
-    run_started_at = datetime.now(timezone.utc)
+    if args.max_new_tokens < 1:
+        parser.error("--max-new-tokens must be positive")
+    warmups = args.warmup_runs
+    if warmups is None:
+        warmups = 2 if args.measurement_mode == "e2e" else 1
+    repeats = args.repeats
+    if repeats is None:
+        repeats = 5 if args.measurement_mode == "e2e" else 3
+    if warmups < 0 or repeats < 1:
+        parser.error("warmups must be non-negative and repeats must be positive")
 
-    # Load model
-    model, tokenizer = load_model(args.model, args.quantization)
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    metadata_path = Path(args.metadata_path) if args.metadata_path else output_dir / "benchmark_metadata.json"
 
-    # Setup profiler
-    profiler = HookProfiler(model)
-    profiler.run_id = args.run_id
-    profiler.attach()
-
-    # Warmup
-    warmup(model, tokenizer)
-
-    # --- Prefill ---
-    print(f"\n=== Prefill ({args.prompt_len} tokens) ===")
-    profiler.clear_records()
+    started_at = datetime.now(timezone.utc).isoformat()
+    model, tokenizer = load_model(args.model, args.quantization, args.local_files_only)
     prompt_ids = make_prompt_ids(tokenizer, args.prompt_len)
-    t0 = time.perf_counter()
-    run_prefill(model, profiler, prompt_ids)
-    prefill_time = time.perf_counter() - t0
-    print(f"Prefill wall time: {prefill_time:.2f}s")
 
-    prefill_df = profiler.to_dataframe()
-    prefill_path = os.path.join(args.output_dir, f"{args.quantization}_prefill.csv")
-    prefill_df.to_csv(prefill_path, index=False)
-    print(f"Exported {len(prefill_df)} records to {prefill_path}")
+    config = {
+        "model": args.model,
+        "prompt_len": args.prompt_len,
+        "max_new_tokens": args.max_new_tokens,
+        "warmup_runs": warmups,
+        "repeats": repeats,
+        "local_files_only": bool(args.local_files_only),
+    }
 
-    # --- Decode ---
-    print(f"\n=== Decode ({args.max_new_tokens} tokens) ===")
-    profiler.clear_records()
-    short_prompt = tokenizer.encode("Once upon a time", return_tensors="pt").to("cuda")
-    t0 = time.perf_counter()
-    run_decode(model, profiler, tokenizer, short_prompt, args.max_new_tokens)
-    decode_time = time.perf_counter() - t0
-    print(f"Decode wall time: {decode_time:.2f}s")
-
-    decode_df = profiler.to_dataframe()
-    decode_path = os.path.join(args.output_dir, f"{args.quantization}_decode.csv")
-    decode_df.to_csv(decode_path, index=False)
-    print(f"Exported {len(decode_df)} records to {decode_path}")
-
-    # Summary
-    profiler.detach()
-    print(f"\n=== Summary ===")
-    print(f"Model:        {args.model}")
-    print(f"Quantization: {args.quantization}")
-    print(f"Run ID:       {args.run_id}")
-    print(f"Prefill:      {prefill_time:.2f}s ({args.prompt_len} tokens)")
-    print(f"Decode:       {decode_time:.2f}s ({args.max_new_tokens} tokens)")
-    if decode_time > 0:
-        print(f"Decode speed: {args.max_new_tokens / decode_time:.1f} tokens/s")
-    print(f"Peak VRAM:    {torch.cuda.max_memory_allocated() / 1e6:.0f} MB")
-
-    if args.metadata_path:
-        metadata = {
-            "run_id": args.run_id,
-            "model": args.model,
+    if args.measurement_mode == "e2e":
+        runs, summary = run_e2e(model, prompt_ids, args.max_new_tokens, warmups, repeats)
+        payload = {
+            "schema_version": 2,
+            "measurement_mode": "e2e",
             "quantization": args.quantization,
-            "prompt_len": args.prompt_len,
-            "max_new_tokens": args.max_new_tokens,
-            "output_dir": os.path.abspath(args.output_dir),
-            "generated_at_utc": run_started_at.isoformat(),
+            "run_id": args.run_id,
+            "started_at_utc": started_at,
             "completed_at_utc": datetime.now(timezone.utc).isoformat(),
-            "host_platform": platform.platform(),
-            "python_version": platform.python_version(),
-            "torch_version": torch.__version__,
-            "cuda_available": bool(torch.cuda.is_available()),
-            "gpu_name": torch.cuda.get_device_name(0) if torch.cuda.is_available() else None,
-            "gpu_total_memory_mb": (
-                torch.cuda.get_device_properties(0).total_memory / 1e6
-                if torch.cuda.is_available() else None
-            ),
-            "prefill": build_phase_summary(prefill_df, prefill_time),
-            "decode": build_phase_summary(decode_df, decode_time),
+            "config": config,
+            "environment": collect_environment(),
+            "runs": runs,
+            "summary": summary,
         }
-        write_metadata(args.metadata_path, metadata)
+    else:
+        prefill_df, decode_df, runs = run_profile(
+            model,
+            prompt_ids,
+            args.max_new_tokens,
+            warmups,
+            repeats,
+            args.run_id,
+        )
+        prefill_path = output_dir / f"{args.quantization}_prefill.csv"
+        decode_path = output_dir / f"{args.quantization}_decode.csv"
+        prefill_df.to_csv(prefill_path, index=False)
+        decode_df.to_csv(decode_path, index=False)
+        print(f"Saved profile CSVs: {prefill_path}, {decode_path}")
+        payload = {
+            "schema_version": 2,
+            "measurement_mode": "profile",
+            "quantization": args.quantization,
+            "run_id": args.run_id,
+            "started_at_utc": started_at,
+            "completed_at_utc": datetime.now(timezone.utc).isoformat(),
+            "config": config,
+            "environment": collect_environment(),
+            "runs": runs,
+        }
+
+    write_json(metadata_path, payload)
 
 
 if __name__ == "__main__":

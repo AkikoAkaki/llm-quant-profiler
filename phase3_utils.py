@@ -30,17 +30,22 @@ class Linear4bitArtifacts:
     logical_weight_shape: tuple[int, int]
 
 
-def load_int4_model(model_id: str = DEFAULT_MODEL_ID):
+def load_int4_model(model_id: str = DEFAULT_MODEL_ID, local_files_only: bool = False):
     """Load the repo's current 4-bit baseline exactly as Phase 2 used it."""
-    tokenizer = AutoTokenizer.from_pretrained(model_id)
+    tokenizer = AutoTokenizer.from_pretrained(
+        model_id,
+        local_files_only=local_files_only,
+    )
     bnb_config = BitsAndBytesConfig(
         load_in_4bit=True,
+        bnb_4bit_quant_type="fp4",
         bnb_4bit_compute_dtype=torch.float16,
     )
     model = AutoModelForCausalLM.from_pretrained(
         model_id,
         quantization_config=bnb_config,
         device_map="cuda",
+        local_files_only=local_files_only,
     )
     model.eval()
     return model, tokenizer

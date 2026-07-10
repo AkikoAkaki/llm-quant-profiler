@@ -15,10 +15,15 @@ class HookProfiler:
         target_types: Tuple of nn.Module subclasses to profile.
     """
 
-    def __init__(self, model: nn.Module,
-                 target_types=(nn.Linear, nn.LayerNorm)):
+    def __init__(
+        self,
+        model: nn.Module,
+        target_types=(nn.Linear, nn.LayerNorm),
+        target_class_names=("FusedFP4Linear",),
+    ):
         self.model = model
         self.target_types = target_types
+        self.target_class_names = set(target_class_names)
         self.records = []
         self._handles = []
         self._timers = {}  # layer_name -> CUDATimer
@@ -33,7 +38,7 @@ class HookProfiler:
     def attach(self):
         """Register hooks on all target layers."""
         for name, module in self.model.named_modules():
-            if isinstance(module, self.target_types):
+            if self._should_profile(module):
                 h_pre = module.register_forward_pre_hook(
                     self._make_pre_hook(name)
                 )
@@ -42,6 +47,13 @@ class HookProfiler:
                 )
                 self._handles.append(h_pre)
                 self._handles.append(h_post)
+
+    def _should_profile(self, module: nn.Module) -> bool:
+        """Return True for built-in targets and project-local fused modules."""
+        return (
+            isinstance(module, self.target_types)
+            or module.__class__.__name__ in self.target_class_names
+        )
 
     def detach(self):
         """Remove all hooks."""

@@ -9,7 +9,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from .visualize import aggregate_layer_timings, is_linear_layer_type
+from .visualize import (
+    MODE_COLORS,
+    MODE_LABELS,
+    MODE_ORDER,
+    aggregate_layer_timings,
+    is_linear_layer_type,
+)
 
 MEMORY_BANDWIDTH_GB_S = 272.0
 COMPUTE_TFLOPS_FP16 = 22.0
@@ -31,7 +37,12 @@ def estimate_linear_flops_and_bytes(
     output_shape: tuple | None,
     quant: str,
 ) -> tuple[float, float]:
-    """Estimate FLOPs and bytes touched by one linear layer invocation."""
+    """Estimate FLOPs and storage traffic for one linear layer invocation.
+
+    This intentionally models packed FP4 storage plus block scales. It does not
+    assume that bitsandbytes materializes a full FP16 weight tensor, and it does
+    not capture unpack/codebook/scale instruction cost inside the 4-bit kernel.
+    """
     if input_shape is None or output_shape is None:
         return 0.0, 0.0
 
@@ -40,23 +51,23 @@ def estimate_linear_flops_and_bytes(
     out_features = output_shape[-1]
     flops = 2.0 * tokens * in_features * out_features
 
+    num_weights = in_features * out_features
     if quant == "fp16":
-        weight_bytes = in_features * out_features * 2.0
+        weight_bytes = num_weights * 2.0
     else:
-        weight_bytes = (
-            in_features * out_features * 0.5
-            + in_features * out_features * 2.0
-            + in_features * out_features * 2.0
-        )
+        packed_weight_bytes = num_weights * 0.5
+        scale_bytes = np.ceil(num_weights / 64.0) * 4.0
+        codebook_bytes = 16.0 * 4.0
+        weight_bytes = packed_weight_bytes + scale_bytes + codebook_bytes
 
-    activation_bytes = tokens * in_features * 2.0
+    activation_bytes = tokens * (in_features + out_features) * 2.0
     return flops, weight_bytes + activation_bytes
 
 
 def compute_roofline_data(dfs: dict[str, pd.DataFrame], phase: str = "decode") -> pd.DataFrame:
     """Compute arithmetic intensity and achieved throughput for linear layers."""
     rows = []
-    for quant in ("fp16", "int4"):
+    for quant in MODE_ORDER:
         key = f"{quant}_{phase}"
         if key not in dfs:
             continue
@@ -99,7 +110,7 @@ def plot_roofline(dfs: dict[str, pd.DataFrame], output_dir: str, phase: str = "d
 
     fig, ax = plt.subplots(figsize=(10, 7))
     fig.suptitle(
-        f"Roofline Model - {phase.capitalize()} Phase\n"
+        f"Storage-Traffic Roofline Estimate - {phase.capitalize()} Phase\n"
         f"RTX 4060 Laptop: {MEMORY_BANDWIDTH_GB_S:.0f} GB/s | "
         f"{COMPUTE_TFLOPS_FP16:.0f} TFLOPS FP16 peak",
         fontsize=12,
@@ -111,22 +122,35 @@ def plot_roofline(dfs: dict[str, pd.DataFrame], output_dir: str, phase: str = "d
     compute_ceiling = np.full_like(x_range, COMPUTE_TFLOPS_FP16 * 1000.0)
     roofline = np.minimum(mem_ceiling, compute_ceiling)
 
-    ax.loglog(x_range, roofline, "k-", linewidth=2, label="Hardware roofline")
+    ax.loglog(x_range, roofline, "k-", linewidth=2, label="DRAM bandwidth reference")
     ax.axvline(RIDGE_POINT, color="gray", linestyle="--", linewidth=1,
                label=f"Ridge point ({RIDGE_POINT:.0f} FLOP/Byte)")
 
-    colors = {"fp16": "#4C72B0", "int4": "#DD8452"}
-    markers = {"fp16": "o", "int4": "^"}
+    markers = {"fp16": "o", "int4": "^", "int4-fused-kv": "s"}
     for quant, group in data.groupby("quantization"):
         ax.scatter(
             group["arithmetic_intensity"],
             group["gflops"],
-            c=colors[quant],
+            c=MODE_COLORS[quant],
             marker=markers[quant],
-            alpha=0.65,
-            s=28,
-            label=quant.upper(),
-            zorder=5,
+            alpha=0.22,
+            s=24,
+            label="_nolegend_",
+            zorder=4,
+        )
+        median_ai = group["arithmetic_intensity"].median()
+        median_gflops = group["gflops"].median()
+        ax.scatter(
+            [median_ai], [median_gflops],
+            c=MODE_COLORS[quant], marker="X", s=110,
+            edgecolors="black", linewidths=0.7,
+            label=f"{MODE_LABELS[quant]} median",
+            zorder=6,
+        )
+        ax.annotate(
+            MODE_LABELS[quant],
+            (median_ai, median_gflops),
+            xytext=(7, 5), textcoords="offset points", fontsize=8,
         )
 
     ax.set_xlabel("Arithmetic Intensity (FLOP/Byte)", fontsize=11)
@@ -136,7 +160,7 @@ def plot_roofline(dfs: dict[str, pd.DataFrame], output_dir: str, phase: str = "d
     ax.text(
         0.05,
         0.09,
-        "Decode remains deep in the memory-bound region",
+        "X = mode median; all medians are far left of the ridge point",
         transform=ax.transAxes,
         fontsize=9,
         color="gray",

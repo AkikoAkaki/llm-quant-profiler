@@ -28,9 +28,10 @@ def main():
     parser.add_argument("--model", default=DEFAULT_MODEL_ID)
     parser.add_argument("--layer", default=DEFAULT_LAYER_PATH)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--local-files-only", action="store_true")
     args = parser.parse_args()
 
-    model, _ = load_int4_model(args.model)
+    model, _ = load_int4_model(args.model, local_files_only=args.local_files_only)
     layer = resolve_module(model, args.layer)
     artifacts = extract_linear4bit_artifacts(layer, args.layer)
     decode_input = make_decode_input(artifacts.in_features, seed=args.seed)

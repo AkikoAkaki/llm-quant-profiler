@@ -8,6 +8,7 @@ dist/
 build/
 .cache/
 venv/
+.venv/
 .claude/
 *_temp.py
 docs/

@@ -156,19 +156,31 @@ def run_e2e_iteration(model, prompt_ids, max_new_tokens: int) -> dict:
     torch.cuda.synchronize()
     torch.cuda.reset_peak_memory_stats()
 
+    prefill_start_event = torch.cuda.Event(enable_timing=True)
+    prefill_end_event = torch.cuda.Event(enable_timing=True)
     started = time.perf_counter()
+    prefill_start_event.record()
     prefill_outputs = model(prompt_ids, use_cache=True)
+    prefill_end_event.record()
     torch.cuda.synchronize()
     prefill_time_s = time.perf_counter() - started
+    prefill_cuda_time_s = prefill_start_event.elapsed_time(prefill_end_event) / 1_000.0
 
+    decode_start_event = torch.cuda.Event(enable_timing=True)
+    decode_end_event = torch.cuda.Event(enable_timing=True)
     started = time.perf_counter()
+    decode_start_event.record()
     final_outputs = _decode_steps(model, prefill_outputs, max_new_tokens)
+    decode_end_event.record()
     torch.cuda.synchronize()
     decode_time_s = time.perf_counter() - started
+    decode_cuda_time_s = decode_start_event.elapsed_time(decode_end_event) / 1_000.0
 
     result = {
         "prefill_time_s": prefill_time_s,
+        "prefill_cuda_time_s": prefill_cuda_time_s,
         "decode_time_s": decode_time_s,
+        "decode_cuda_time_s": decode_cuda_time_s,
         "decode_steps": max_new_tokens,
         "decode_throughput_tps": (
             max_new_tokens / decode_time_s if decode_time_s > 0 else 0.0
@@ -401,7 +413,8 @@ def run_e2e(
         runs.append(result)
         print(
             f"Run {index + 1}/{repeats}: prefill={result['prefill_time_s']:.3f}s "
-            f"decode={result['decode_time_s']:.3f}s "
+            f"decode_wall={result['decode_time_s']:.3f}s "
+            f"decode_cuda={result['decode_cuda_time_s']:.3f}s "
             f"throughput={result['decode_throughput_tps']:.2f} tok/s"
         )
         if cooldown_s and index + 1 < repeats:
@@ -410,7 +423,9 @@ def run_e2e(
         key: summarize_values([float(run[key]) for run in runs])
         for key in (
             "prefill_time_s",
+            "prefill_cuda_time_s",
             "decode_time_s",
+            "decode_cuda_time_s",
             "decode_throughput_tps",
             "peak_vram_mb",
             "peak_reserved_vram_mb",
@@ -530,7 +545,7 @@ def main():
             args.cooldown_s,
         )
         payload = {
-            "schema_version": 2,
+            "schema_version": 3,
             "measurement_mode": "e2e",
             "quantization": args.quantization,
             "run_id": args.run_id,

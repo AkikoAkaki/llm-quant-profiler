@@ -8,7 +8,9 @@ def e2e_entry(mode, decode_s, peak_mb):
         {
             "run_index": 1,
             "prefill_time_s": 1.0,
+            "prefill_cuda_time_s": 1.0,
             "decode_time_s": decode_s,
+            "decode_cuda_time_s": decode_s,
             "decode_steps": 10,
             "decode_throughput_tps": 10.0 / decode_s,
             "peak_vram_mb": peak_mb,
@@ -29,7 +31,9 @@ def e2e_entry(mode, decode_s, peak_mb):
         "runs": runs,
         "summary": {
             "prefill_time_s": summarize_values([1.0]),
+            "prefill_cuda_time_s": summarize_values([1.0]),
             "decode_time_s": summarize_values([decode_s]),
+            "decode_cuda_time_s": summarize_values([decode_s]),
             "decode_throughput_tps": summarize_values([10.0 / decode_s]),
             "peak_vram_mb": summarize_values([peak_mb]),
             "peak_reserved_vram_mb": summarize_values([peak_mb + 100.0]),

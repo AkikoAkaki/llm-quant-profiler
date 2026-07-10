@@ -397,15 +397,15 @@ def run_e2e(
     idle_timeout_s: float,
     cooldown_s: float,
 ):
+    idle_state = wait_for_gpu_idle(max_idle_gpu_util, idle_samples, idle_timeout_s)
     for index in range(warmups):
         print(f"Warmup {index + 1}/{warmups}")
-        wait_for_gpu_idle(max_idle_gpu_util, idle_samples, idle_timeout_s)
         run_e2e_iteration(model, prompt_ids, max_new_tokens)
         if cooldown_s:
             time.sleep(cooldown_s)
     runs = []
     for index in range(repeats):
-        gpu_before = wait_for_gpu_idle(max_idle_gpu_util, idle_samples, idle_timeout_s)
+        gpu_before = query_gpu_state()
         result = run_e2e_iteration(model, prompt_ids, max_new_tokens)
         result["gpu_before"] = gpu_before
         result["gpu_after"] = query_gpu_state()
@@ -431,7 +431,7 @@ def run_e2e(
             "peak_reserved_vram_mb",
         )
     }
-    return runs, summary
+    return runs, summary, idle_state
 
 
 def run_profile(model, prompt_ids, max_new_tokens: int, warmups: int, repeats: int, run_id: str):
@@ -491,7 +491,12 @@ def main():
     parser.add_argument("--max-idle-gpu-util", type=float, default=15.0)
     parser.add_argument("--idle-samples", type=int, default=3)
     parser.add_argument("--idle-timeout-s", type=float, default=120.0)
-    parser.add_argument("--cooldown-s", type=float, default=3.0)
+    parser.add_argument(
+        "--cooldown-s",
+        type=float,
+        default=0.0,
+        help="optional pause between same-mode iterations; zero preserves steady-state clocks",
+    )
     parser.add_argument("--output-dir", default="data")
     parser.add_argument("--run-id", default="single-run")
     parser.add_argument("--metadata-path")
@@ -502,7 +507,7 @@ def main():
         parser.error("--max-new-tokens must be positive")
     warmups = args.warmup_runs
     if warmups is None:
-        warmups = 3 if args.measurement_mode == "e2e" else 1
+        warmups = 8 if args.measurement_mode == "e2e" else 1
     repeats = args.repeats
     if repeats is None:
         repeats = 7 if args.measurement_mode == "e2e" else 3
@@ -533,7 +538,7 @@ def main():
     }
 
     if args.measurement_mode == "e2e":
-        runs, summary = run_e2e(
+        runs, summary, idle_state = run_e2e(
             model,
             prompt_ids,
             args.max_new_tokens,
@@ -553,6 +558,7 @@ def main():
             "completed_at_utc": datetime.now(timezone.utc).isoformat(),
             "config": config,
             "environment": collect_environment(),
+            "gpu_idle_before_mode": idle_state,
             "runs": runs,
             "summary": summary,
         }

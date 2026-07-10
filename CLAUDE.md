@@ -36,9 +36,9 @@ python -m unittest discover -s tests -v
 
 - `--measurement-mode e2e` must not attach profiler hooks. It uses one prompt for prefill and decode, generates the requested fixed number of decode steps, and records wall time, throughput, and peak allocated/reserved VRAM.
 - `--measurement-mode profile` attaches CUDA Event hooks to `nn.Linear`, `nn.LayerNorm`, bitsandbytes `Linear4bit`, and project-local `FusedFP4Linear`. Per-layer synchronization changes wall time, so profile timing is diagnostic only.
-- Canonical E2E defaults: 512-token prompt, 128 decode steps, 3 warmups, 7 measured runs per mode.
+- Canonical E2E defaults: 512-token prompt, 128 decode steps, 8 warmups, 7 measured runs per mode.
 - Canonical profile defaults: 1 uninstrumented warmup, 3 instrumented runs per mode.
-- Before every E2E iteration, require three consecutive GPU-utilization samples at or below 15%; record GPU telemetry before and after each timed run.
+- Before each E2E mode, require three consecutive GPU-utilization samples at or below 15%; then run all warmups and measured repetitions back-to-back so GPU clock state can reach steady state. Record GPU telemetry before and after each timed run.
 - A canonical artifact is emitted only if every mode passes the predeclared stability gate: at most one Tukey outlier in seven runs, retained decode CV at most 15%, and IQR/median at most 30%.
 - Always report medians for primary E2E metrics and include sample standard deviation.
 

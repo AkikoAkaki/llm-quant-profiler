@@ -1,0 +1,436 @@
+{
+  "schema_version": 1,
+  "generated_at_utc": "2026-07-10T13:24:13.970252+00:00",
+  "config": {
+    "model": "Qwen/Qwen2.5-1.5B-Instruct",
+    "prompt_len": 512,
+    "max_new_tokens": 128,
+    "warmup_runs": 2,
+    "repeats": 5
+  },
+  "environment_by_mode": {
+    "fp16": {
+      "host_platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.31",
+      "python_version": "3.11.15",
+      "torch_version": "2.5.1+cu121",
+      "torch_cuda_version": "12.1",
+      "transformers_version": "5.3.0",
+      "accelerate_version": "1.13.0",
+      "bitsandbytes_version": "0.49.2",
+      "triton_version": "3.1.0",
+      "gpu_name": "NVIDIA GeForce RTX 4060 Laptop GPU",
+      "gpu_total_memory_mb": 8585.216,
+      "nvidia_driver_version": "610.47",
+      "git_commit": "46ce4c9ccc34b0757409eaa180a981660aa77015",
+      "git_dirty": true
+    },
+    "int4": {
+      "host_platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.31",
+      "python_version": "3.11.15",
+      "torch_version": "2.5.1+cu121",
+      "torch_cuda_version": "12.1",
+      "transformers_version": "5.3.0",
+      "accelerate_version": "1.13.0",
+      "bitsandbytes_version": "0.49.2",
+      "triton_version": "3.1.0",
+      "gpu_name": "NVIDIA GeForce RTX 4060 Laptop GPU",
+      "gpu_total_memory_mb": 8585.216,
+      "nvidia_driver_version": "610.47",
+      "git_commit": "46ce4c9ccc34b0757409eaa180a981660aa77015",
+      "git_dirty": true
+    },
+    "int4-fused-kv": {
+      "host_platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.31",
+      "python_version": "3.11.15",
+      "torch_version": "2.5.1+cu121",
+      "torch_cuda_version": "12.1",
+      "transformers_version": "5.3.0",
+      "accelerate_version": "1.13.0",
+      "bitsandbytes_version": "0.49.2",
+      "triton_version": "3.1.0",
+      "gpu_name": "NVIDIA GeForce RTX 4060 Laptop GPU",
+      "gpu_total_memory_mb": 8585.216,
+      "nvidia_driver_version": "610.47",
+      "git_commit": "46ce4c9ccc34b0757409eaa180a981660aa77015",
+      "git_dirty": true
+    }
+  },
+  "modes": {
+    "fp16": {
+      "runs": [
+        {
+          "prefill_time_s": 0.06761674200004109,
+          "decode_time_s": 5.540631521000023,
+          "decode_steps": 128,
+          "decode_throughput_tps": 23.10205966862373,
+          "peak_vram_mb": 3271.252992,
+          "peak_reserved_vram_mb": 3319.791616,
+          "run_index": 1
+        },
+        {
+          "prefill_time_s": 0.06676077000008718,
+          "decode_time_s": 6.259274469000047,
+          "decode_steps": 128,
+          "decode_throughput_tps": 20.449654450198395,
+          "peak_vram_mb": 3271.252992,
+          "peak_reserved_vram_mb": 3319.791616,
+          "run_index": 2
+        },
+        {
+          "prefill_time_s": 0.06790467500002251,
+          "decode_time_s": 5.232972146999941,
+          "decode_steps": 128,
+          "decode_throughput_tps": 24.460286889427127,
+          "peak_vram_mb": 3271.252992,
+          "peak_reserved_vram_mb": 3319.791616,
+          "run_index": 3
+        },
+        {
+          "prefill_time_s": 0.12334892499995931,
+          "decode_time_s": 4.836553339000034,
+          "decode_steps": 128,
+          "decode_throughput_tps": 26.465127339309824,
+          "peak_vram_mb": 3271.252992,
+          "peak_reserved_vram_mb": 3319.791616,
+          "run_index": 4
+        },
+        {
+          "prefill_time_s": 0.06833663899999465,
+          "decode_time_s": 6.200214621999976,
+          "decode_steps": 128,
+          "decode_throughput_tps": 20.644446652834027,
+          "peak_vram_mb": 3271.252992,
+          "peak_reserved_vram_mb": 3319.791616,
+          "run_index": 5
+        }
+      ],
+      "summary": {
+        "prefill_time_s": {
+          "count": 5,
+          "median": 0.06790467500002251,
+          "mean": 0.07879355020002095,
+          "std": 0.02491387595000231,
+          "min": 0.06676077000008718,
+          "max": 0.12334892499995931
+        },
+        "decode_time_s": {
+          "count": 5,
+          "median": 5.540631521000023,
+          "mean": 5.613929219600005,
+          "std": 0.6154297619373683,
+          "min": 4.836553339000034,
+          "max": 6.259274469000047
+        },
+        "decode_throughput_tps": {
+          "count": 5,
+          "median": 23.10205966862373,
+          "mean": 23.024315000078623,
+          "std": 2.559291862587104,
+          "min": 20.449654450198395,
+          "max": 26.465127339309824
+        },
+        "peak_vram_mb": {
+          "count": 5,
+          "median": 3271.252992,
+          "mean": 3271.252992,
+          "std": 0.0,
+          "min": 3271.252992,
+          "max": 3271.252992
+        },
+        "peak_reserved_vram_mb": {
+          "count": 5,
+          "median": 3319.791616,
+          "mean": 3319.791616,
+          "std": 0.0,
+          "min": 3319.791616,
+          "max": 3319.791616
+        }
+      }
+    },
+    "int4": {
+      "runs": [
+        {
+          "prefill_time_s": 0.35492276899992703,
+          "decode_time_s": 24.024072562000015,
+          "decode_steps": 128,
+          "decode_throughput_tps": 5.32798923536651,
+          "peak_vram_mb": 1423.926784,
+          "peak_reserved_vram_mb": 3076.521984,
+          "run_index": 1
+        },
+        {
+          "prefill_time_s": 0.2685614420000775,
+          "decode_time_s": 24.31910602800008,
+          "decode_steps": 128,
+          "decode_throughput_tps": 5.263351368780816,
+          "peak_vram_mb": 1423.926784,
+          "peak_reserved_vram_mb": 3076.521984,
+          "run_index": 2
+        },
+        {
+          "prefill_time_s": 0.2624871159999884,
+          "decode_time_s": 23.640052967000088,
+          "decode_steps": 128,
+          "decode_throughput_tps": 5.414539475807407,
+          "peak_vram_mb": 1423.926784,
+          "peak_reserved_vram_mb": 3076.521984,
+          "run_index": 3
+        },
+        {
+          "prefill_time_s": 0.2876484270000219,
+          "decode_time_s": 25.723861289999945,
+          "decode_steps": 128,
+          "decode_throughput_tps": 4.975924825475541,
+          "peak_vram_mb": 1423.926784,
+          "peak_reserved_vram_mb": 3076.521984,
+          "run_index": 4
+        },
+        {
+          "prefill_time_s": 0.3065524969999842,
+          "decode_time_s": 24.699750642000026,
+          "decode_steps": 128,
+          "decode_throughput_tps": 5.182238551928773,
+          "peak_vram_mb": 1423.926784,
+          "peak_reserved_vram_mb": 3076.521984,
+          "run_index": 5
+        }
+      ],
+      "summary": {
+        "prefill_time_s": {
+          "count": 5,
+          "median": 0.2876484270000219,
+          "mean": 0.2960344501999998,
+          "std": 0.03717855092711167,
+          "min": 0.2624871159999884,
+          "max": 0.35492276899992703
+        },
+        "decode_time_s": {
+          "count": 5,
+          "median": 24.31910602800008,
+          "mean": 24.48136869780003,
+          "std": 0.7960432783372884,
+          "min": 23.640052967000088,
+          "max": 25.723861289999945
+        },
+        "decode_throughput_tps": {
+          "count": 5,
+          "median": 5.263351368780816,
+          "mean": 5.232808691471809,
+          "std": 0.16700668300334234,
+          "min": 4.975924825475541,
+          "max": 5.414539475807407
+        },
+        "peak_vram_mb": {
+          "count": 5,
+          "median": 1423.926784,
+          "mean": 1423.926784,
+          "std": 0.0,
+          "min": 1423.926784,
+          "max": 1423.926784
+        },
+        "peak_reserved_vram_mb": {
+          "count": 5,
+          "median": 3076.521984,
+          "mean": 3076.521984,
+          "std": 0.0,
+          "min": 3076.521984,
+          "max": 3076.521984
+        }
+      }
+    },
+    "int4-fused-kv": {
+      "runs": [
+        {
+          "prefill_time_s": 6.2556751680001526,
+          "decode_time_s": 36.89503689999992,
+          "decode_steps": 128,
+          "decode_throughput_tps": 3.469301314074584,
+          "peak_vram_mb": 1434.994176,
+          "peak_reserved_vram_mb": 3202.351104,
+          "run_index": 1
+        },
+        {
+          "prefill_time_s": 8.20792673799997,
+          "decode_time_s": 42.147808264000105,
+          "decode_steps": 128,
+          "decode_throughput_tps": 3.03693134405115,
+          "peak_vram_mb": 1434.994176,
+          "peak_reserved_vram_mb": 3202.351104,
+          "run_index": 2
+        },
+        {
+          "prefill_time_s": 5.995127392999848,
+          "decode_time_s": 40.30474036800001,
+          "decode_steps": 128,
+          "decode_throughput_tps": 3.175805099631053,
+          "peak_vram_mb": 1434.994176,
+          "peak_reserved_vram_mb": 3202.351104,
+          "run_index": 3
+        },
+        {
+          "prefill_time_s": 5.889641723000068,
+          "decode_time_s": 36.172832895000056,
+          "decode_steps": 128,
+          "decode_throughput_tps": 3.53856719963154,
+          "peak_vram_mb": 1434.994176,
+          "peak_reserved_vram_mb": 3202.351104,
+          "run_index": 4
+        },
+        {
+          "prefill_time_s": 5.788836937000042,
+          "decode_time_s": 36.7098528460001,
+          "decode_steps": 128,
+          "decode_throughput_tps": 3.486802318085207,
+          "peak_vram_mb": 1434.994176,
+          "peak_reserved_vram_mb": 3202.351104,
+          "run_index": 5
+        }
+      ],
+      "summary": {
+        "prefill_time_s": {
+          "count": 5,
+          "median": 5.995127392999848,
+          "mean": 6.427441591800016,
+          "std": 1.0103924028170108,
+          "min": 5.788836937000042,
+          "max": 8.20792673799997
+        },
+        "decode_time_s": {
+          "count": 5,
+          "median": 36.89503689999992,
+          "mean": 38.44605425460004,
+          "std": 2.6336895379624807,
+          "min": 36.172832895000056,
+          "max": 42.147808264000105
+        },
+        "decode_throughput_tps": {
+          "count": 5,
+          "median": 3.469301314074584,
+          "mean": 3.341481455094707,
+          "std": 0.2216406354698632,
+          "min": 3.03693134405115,
+          "max": 3.53856719963154
+        },
+        "peak_vram_mb": {
+          "count": 5,
+          "median": 1434.994176,
+          "mean": 1434.994176,
+          "std": 0.0,
+          "min": 1434.994176,
+          "max": 1434.994176
+        },
+        "peak_reserved_vram_mb": {
+          "count": 5,
+          "median": 3202.351104,
+          "mean": 3202.351104,
+          "std": 0.0,
+          "min": 3202.351104,
+          "max": 3202.351104
+        }
+      }
+    }
+  },
+  "comparisons": {
+    "int4_decode_latency_change_vs_fp16_pct": 338.9229988644101,
+    "fused_decode_latency_change_vs_int4_pct": 51.71214294440101,
+    "int4_peak_vram_reduction_vs_fp16_pct": 56.47151756582941
+  },
+  "diagnostic_profile": [
+    {
+      "quantization": "fp16",
+      "phase": "prefill",
+      "num_runs": 3,
+      "records": 591,
+      "num_layers": 197,
+      "total_time_ms_mean": 112.60170683264732,
+      "total_time_ms_std": 49.87352867006417,
+      "peak_vram_mb_mean": 3267.7888,
+      "peak_vram_mb_std": 0.0,
+      "avg_layer_time_ms_mean": 0.571582268186027,
+      "avg_layer_time_ms_std": 0.25316512015261,
+      "slowest_layer": "lm_head",
+      "slowest_layer_time_ms_mean": 9.782560030619303,
+      "slowest_layer_time_ms_std": 0.772173560047443
+    },
+    {
+      "quantization": "fp16",
+      "phase": "decode",
+      "num_runs": 3,
+      "records": 75648,
+      "num_layers": 197,
+      "total_time_ms_mean": 8820.013462114148,
+      "total_time_ms_std": 6081.431445631055,
+      "peak_vram_mb_mean": 3271.252992,
+      "peak_vram_mb_std": 0.0,
+      "avg_layer_time_ms_mean": 0.34977845265363844,
+      "avg_layer_time_ms_std": 0.241173518624328,
+      "slowest_layer": "lm_head",
+      "slowest_layer_time_ms_mean": 2.2916161694253483,
+      "slowest_layer_time_ms_std": 0.23310377260754794
+    },
+    {
+      "quantization": "int4",
+      "phase": "prefill",
+      "num_runs": 3,
+      "records": 591,
+      "num_layers": 197,
+      "total_time_ms_mean": 336.25947776436806,
+      "total_time_ms_std": 205.62621504809778,
+      "peak_vram_mb_mean": 1423.673344,
+      "peak_vram_mb_std": 0.0,
+      "avg_layer_time_ms_mean": 1.7069009023571986,
+      "avg_layer_time_ms_std": 1.0437878936451666,
+      "slowest_layer": "lm_head",
+      "slowest_layer_time_ms_mean": 9.418069203694662,
+      "slowest_layer_time_ms_std": 0.3971700990945198
+    },
+    {
+      "quantization": "int4",
+      "phase": "decode",
+      "num_runs": 3,
+      "records": 75648,
+      "num_layers": 197,
+      "total_time_ms_mean": 14184.131516613686,
+      "total_time_ms_std": 4190.864359610455,
+      "peak_vram_mb_mean": 1425.3992960000003,
+      "peak_vram_mb_std": 2.7847474288855413e-13,
+      "avg_layer_time_ms_mean": 0.5625052156017484,
+      "avg_layer_time_ms_std": 0.1661986183221151,
+      "slowest_layer": "lm_head",
+      "slowest_layer_time_ms_mean": 2.1847432485471168,
+      "slowest_layer_time_ms_std": 0.11712302896036458
+    },
+    {
+      "quantization": "int4-fused-kv",
+      "phase": "prefill",
+      "num_runs": 3,
+      "records": 591,
+      "num_layers": 197,
+      "total_time_ms_mean": 3436.0318566660085,
+      "total_time_ms_std": 1281.2588405260265,
+      "peak_vram_mb_mean": 1434.281984,
+      "peak_vram_mb_std": 0.0,
+      "avg_layer_time_ms_mean": 17.441786074446743,
+      "avg_layer_time_ms_std": 6.5038519823656165,
+      "slowest_layer": "model.layers.13.self_attn.v_proj",
+      "slowest_layer_time_ms_mean": 77.2495346069336,
+      "slowest_layer_time_ms_std": 41.56546110027148
+    },
+    {
+      "quantization": "int4-fused-kv",
+      "phase": "decode",
+      "num_runs": 3,
+      "records": 75648,
+      "num_layers": 197,
+      "total_time_ms_mean": 24773.186601338908,
+      "total_time_ms_std": 5610.8820642548735,
+      "peak_vram_mb_mean": 1435.930112,
+      "peak_vram_mb_std": 1.837470347920815,
+      "avg_layer_time_ms_mean": 0.982439189456651,
+      "avg_layer_time_ms_std": 0.22251277221822943,
+      "slowest_layer": "lm_head",
+      "slowest_layer_time_ms_mean": 2.3797959216559925,
+      "slowest_layer_time_ms_std": 0.13571716430226083
+    }
+  ]
+}

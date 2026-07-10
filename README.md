@@ -1,84 +1,80 @@
 # llm-quant-profiler
 
-Profiling INT4 LLM inference on a consumer GPU and improving decode throughput by 16%
-over bitsandbytes INT4 with a fused Triton dequant+GEMV kernel.
+A single-GPU profiler for the latency and memory tradeoffs of FP16 and bitsandbytes FP4 LLM inference.
 
-On Qwen2.5-1.5B-Instruct with an RTX 4060 Laptop GPU, bitsandbytes INT4 reduced VRAM by 60% but made decode 1.27× slower than FP16. Replacing 56 k/v projection layers with a fused Triton kernel improved INT4 decode throughput from 5.8 to 6.7 tok/s.
+On Qwen2.5-1.5B-Instruct and an RTX 4060 Laptop GPU, the fresh no-hook benchmark found that bitsandbytes INT4 used **56.5% less peak allocated VRAM** than FP16 but had **338.9% higher decode latency** (4.39×). A correctness-validated Triton fused k/v prototype was **51.7% slower** than the bitsandbytes INT4 baseline in the same benchmark.
 
-**Key results:** 1.27× INT4 decode slowdown vs FP16 · 16% higher decode throughput than bitsandbytes INT4 · 60% VRAM reduction vs FP16
-
----
+**Canonical results:** [report](PHASE3_REPORT.md) · [machine-readable JSON](results/canonical.json) · [Chinese README](README_CN.md)
 
 ## Results
 
-| Mode | Prefill | Decode | Decode throughput | Peak VRAM |
-|------|---------|--------|-------------------|-----------|
-| FP16 | 0.25s | 17.40s | 7.4 tok/s | 3100 MB |
-| INT4 (bitsandbytes) | 0.27s | 22.10s | 5.8 tok/s | 1227 MB |
-| INT4 + fused k/v kernel | 3.20s | 19.09s | 6.7 tok/s | 1227 MB |
+| Mode | Prefill | Decode | Decode throughput | Peak allocated VRAM |
+|------|---------|--------|-------------------|---------------------|
+| FP16 | 0.068 s (std 0.025) | 5.541 s (std 0.615) | 23.10 tok/s (std 2.56) | 3271.3 MB |
+| INT4 (bitsandbytes FP4) | 0.288 s (std 0.037) | 24.319 s (std 0.796) | 5.26 tok/s (std 0.17) | 1423.9 MB |
+| INT4 + fused k/v prototype | 5.995 s (std 1.010) | 36.895 s (std 2.634) | 3.47 tok/s (std 0.22) | 1435.0 MB |
 
-*Qwen2.5-1.5B-Instruct · 512-token prompt · 128 decode steps · RTX 4060 Laptop 8GB*
+*Qwen/Qwen2.5-1.5B-Instruct · 512-token prompt · 128 fixed decode steps · 2 warmups + 5 measured runs per mode · medians with sample standard deviation · PyTorch 2.5.1+cu121 · Transformers 5.3.0 · bitsandbytes 0.49.2 · Triton 3.1.0*
 
-Decode is the target workload. The fused kernel is GEMV-oriented (seq=1); prefill requires GEMM and is not optimized — see [Limitations](#limitations).
+The primary table is measured with **no profiler hooks attached**. CUDA Event layer profiling is run separately and is used only for diagnosis and the figures below.
 
----
+## What the profile shows
 
-## The Problem
+- INT4 reduces allocated memory substantially on this 8GB GPU, but the tested bitsandbytes FP4 path is much slower during batch-1 decode.
+- Nine of the ten largest relative layer slowdowns are GQA `k_proj` or `v_proj` layers. The largest single outlier in this run is `model.layers.13.mlp.down_proj`.
+- The storage-based Roofline estimate predicts fewer weight bytes for INT4, yet measured latency is much worse. Compression alone therefore does not guarantee a faster kernel.
+- In bitsandbytes 0.49.2, eligible batch-1 decode shapes dispatch to a dedicated CUDA `gemv_4bit` path. The remaining bottleneck may involve on-the-fly unpack/scale work, instruction mix, occupancy, launch overhead, or shape-specific kernel efficiency; this repo does not isolate those causes yet.
+- The fused k/v implementation is a correctness-first GEMV prototype. Its Python wrapper launches one Triton kernel per token row and does not outperform bitsandbytes end to end.
 
-Profiling is consistent with extra global-memory traffic associated with INT4 dequantization before matmul. On a memory-bound GPU, this lowers effective arithmetic intensity:
+![Per-layer latency](outputs/fig1_layerwise_latency.png)
 
-- **FP16:** ~1 FLOP/Byte
-- **INT4 (bitsandbytes):** ~0.44 FLOP/Byte
+![Largest relative INT4 slowdowns](outputs/fig3_top10_slowest.png)
 
-Lower arithmetic intensity means slower execution when the GPU is memory-bound — which decode always is (ridge point: 80 FLOP/Byte on RTX 4060 Laptop).
+## Figure guide
 
-The worst offenders are `k_proj` and `v_proj`. Qwen2.5-1.5B uses GQA (Grouped Query Attention), so these projections output only 256 features vs. 1536 for other projections. Fewer FLOPs, same dequantization overhead → **up to ~380% (4–5×) slower than FP16** per layer.
+- **Figure 1 — Decode slowdown by layer:** read the y-axis as INT4 latency change relative to FP16. Orange markers isolate `k_proj`/`v_proj`; the question is whether the tax is isolated or distributed.
+- **Figure 2 — Peak allocated VRAM:** a direct memory comparison across modes. It is deliberately not labeled KV-cache growth because this experiment does not isolate cache growth.
+- **Figure 3 — Top-10 layer cost:** the optimization priority list. Orange bars are k/v projections; gray bars are other layers.
+- **Figure 4 — Storage-traffic Roofline:** faint points are individual layers and X markers are mode medians. All medians are far left of the ridge point; this is a workload-location diagnostic, not a causal explanation.
 
-![Per-layer latency: FP16 vs INT4 decode](outputs/fig1_layerwise_latency.png)
-![Roofline analysis](outputs/fig4_roofline.png)
+## Measurement design
 
----
+`scripts/run_benchmark.py` exposes two explicitly separate paths:
 
-## Approach
+- `--measurement-mode e2e`: attaches no hooks, uses the same requested prompt for prefill and decode, generates a fixed number of decode steps, and reports wall time, throughput, and peak allocated/reserved VRAM.
+- `--measurement-mode profile`: attaches CUDA Event hooks to 197 target layers and exports per-layer CSVs. Per-layer synchronization changes wall time, so these runs are never used as the primary performance result.
 
-### 1. Layer-by-layer profiling
-
-Registered CUDA Event hooks on all `nn.Linear` and `Linear4bit` layers across the model. Manually drove the decode loop token-by-token (instead of `model.generate()`) to isolate each step. Captured timing, memory snapshots, and input shapes for 6,300+ layer calls per run.
-
-### 2. Roofline analysis
-
-Computed arithmetic intensity for each layer type under FP16 and INT4 regimes. All decode layers sit deep in the memory-bound region. INT4 dequantization pushes arithmetic intensity further left on the roofline — the opposite of what quantization is supposed to achieve.
-
-### 3. Fused Triton kernel
-
-Wrote a custom Triton GEMV kernel that performs dequantization inside the kernel before accumulation, avoiding materializing dequantized weights as a separate intermediate tensor. Replaced `k_proj` and `v_proj` in all 28 attention layers (56 projections total) with `FusedFP4Linear`, which calls this kernel directly.
-
----
+The canonical runner executes FP16, INT4, and INT4-fused-k/v under both paths, records package/GPU/driver/Git metadata, regenerates the four charts, and writes the public report and JSON summary.
 
 ## Reproduce
 
-> Requires WSL2 Ubuntu. bitsandbytes and Triton do not run on native Windows.
+Run inside WSL2 with an NVIDIA GPU:
 
 ```bash
-bash setup.sh && source venv/bin/activate
-
-python scripts/run_benchmark.py --quantization fp16 --prompt-len 512 --max-new-tokens 128
-python scripts/run_benchmark.py --quantization int4 --prompt-len 512 --max-new-tokens 128
-python scripts/run_benchmark.py --quantization int4-fused-kv --prompt-len 512 --max-new-tokens 128
-
-python scripts/run_analysis.py
+bash setup.sh
+source ~/.venvs/llm-quant-profiler/bin/activate
+python scripts/run_phase3.py --local-files-only
 ```
 
-Model: `Qwen/Qwen2.5-1.5B-Instruct` (~3GB download on first run). Results written to `data/` (gitignored). Charts written to `outputs/`.
+Omit `--local-files-only` on the first run if the Hugging Face model is not cached.
 
----
+For a quick E2E smoke test:
 
-## Limitations
+```bash
+python scripts/run_benchmark.py \
+  --quantization fp16 \
+  --measurement-mode e2e \
+  --prompt-len 32 \
+  --max-new-tokens 8 \
+  --warmup-runs 0 \
+  --repeats 1
+```
 
-The fused kernel is GEMV-oriented: it processes one token at a time (sequence length = 1), which is the decode regime. Prefill passes a full sequence through the model at once, requiring GEMM rather than GEMV. This is why the fused k/v kernel improves decode throughput but significantly slows prefill (0.27s → 3.20s). Optimizing prefill is a separate problem requiring a different kernel design.
+Raw metadata and layer CSVs are written under `data/` and gitignored. Public artifacts are written to `results/canonical.json`, `PHASE3_REPORT.md`, and `outputs/`.
 
-Only `k_proj` and `v_proj` were replaced. Other `Linear4bit` layers still use bitsandbytes.
+## Interpretation boundaries
 
----
-
-[中文版 README](README_CN.md)
+- These results apply to one model, one consumer GPU, batch size 1, and the exact software versions above.
+- The Roofline figure models packed FP4 storage and block scales. It does not model unpack/codebook/scale instruction cost, occupancy, or cache behavior.
+- The measured slowdown is established; its exact CUDA-kernel bottleneck still requires Nsight or equivalent kernel-level profiling.
+- The custom kernel replaces only 56 k/v projections. It is not a general INT4 inference engine and should not be compared with optimized production fused kernels.

@@ -1,83 +1,80 @@
 # llm-quant-profiler
 
-在消费级 GPU 上对 INT4 LLM 推理进行性能剖析，并通过融合 Triton dequant+GEMV 内核将 decode 吞吐量相比 bitsandbytes INT4 提升 16%。
+一个用于测量 FP16 与 bitsandbytes FP4 LLM 推理 latency–memory tradeoff 的单 GPU profiler。
 
-在 RTX 4060 Laptop GPU 上，bitsandbytes INT4 将显存占用减少 60%，但 decode 速度比 FP16 慢 1.27 倍。将 56 个 k/v 投影层替换为融合 Triton 内核后，INT4 decode 吞吐量从 5.8 提升至 6.7 tok/s。
+在 Qwen2.5-1.5B-Instruct 和 RTX 4060 Laptop GPU 上，fresh no-hook benchmark 显示：bitsandbytes INT4 的峰值 allocated VRAM 比 FP16 **低 56.5%**，但 decode latency **高 338.9%**（4.39×）。同一 benchmark 中，通过 correctness 验证的 Triton fused k/v prototype 比 bitsandbytes INT4 baseline **慢 51.7%**。
 
-**核心结论：** INT4 decode 比 FP16 慢 1.27× · 比 bitsandbytes INT4 decode 吞吐量高 16% · 显存占用比 FP16 少 60%
-
----
+**Canonical artifacts：**[完整报告](PHASE3_REPORT.md) · [机器可读 JSON](results/canonical.json) · [English README](README.md)
 
 ## 实测结果
 
-| 模式 | Prefill | Decode | Decode 吞吐量 | 峰值显存 |
-|------|---------|--------|---------------|---------|
-| FP16 | 0.25s | 17.40s | 7.4 tok/s | 3100 MB |
-| INT4 (bitsandbytes) | 0.27s | 22.10s | 5.8 tok/s | 1227 MB |
-| INT4 + 融合 k/v 内核 | 3.20s | 19.09s | 6.7 tok/s | 1227 MB |
+| 模式 | Prefill | Decode | Decode throughput | Peak allocated VRAM |
+|------|---------|--------|-------------------|---------------------|
+| FP16 | 0.068 s（std 0.025） | 5.541 s（std 0.615） | 23.10 tok/s（std 2.56） | 3271.3 MB |
+| INT4（bitsandbytes FP4） | 0.288 s（std 0.037） | 24.319 s（std 0.796） | 5.26 tok/s（std 0.17） | 1423.9 MB |
+| INT4 + fused k/v prototype | 5.995 s（std 1.010） | 36.895 s（std 2.634） | 3.47 tok/s（std 0.22） | 1435.0 MB |
 
-*Qwen2.5-1.5B-Instruct · 512 token prompt · 128 decode steps · RTX 4060 Laptop 8GB*
+*Qwen/Qwen2.5-1.5B-Instruct · 512-token prompt · 128 个固定 decode steps · 每种模式 2 次 warmup + 5 次正式测量 · 表中为 median 与 sample standard deviation · PyTorch 2.5.1+cu121 · Transformers 5.3.0 · bitsandbytes 0.49.2 · Triton 3.1.0*
 
-Decode 是目标工作负载。融合内核面向 GEMV（seq=1）设计；Prefill 需要 GEMM，未做优化——详见[局限性](#局限性)。
+主表来自**完全不挂 profiler hooks** 的 E2E 路径。CUDA Event layer profiling 单独运行，只用于诊断和生成下方图表。
 
----
+## Profile 说明了什么
 
-## 问题所在
+- INT4 在这张 8GB GPU 上显著降低 allocated memory，但测试的 bitsandbytes FP4 路径在 batch-1 decode 中明显更慢。
+- relative slowdown 最大的十层中有九层是 GQA `k_proj` 或 `v_proj`；本次最大单层 outlier 是 `model.layers.13.mlp.down_proj`。
+- Storage-based Roofline estimate 预计 INT4 读取的 weight bytes 更少，但实测 latency 反而明显更高，因此 compression 本身不保证 kernel 更快。
+- bitsandbytes 0.49.2 对符合条件的 batch-1 decode shape 会 dispatch 到专用 CUDA `gemv_4bit` 路径。剩余瓶颈可能来自 on-the-fly unpack/scale、instruction mix、occupancy、launch overhead 或 shape-specific kernel efficiency；本 repo 尚未把这些原因逐一隔离。
+- Fused k/v 实现是 correctness-first GEMV prototype。当前 Python wrapper 对每个 token row 启动一个 Triton kernel，端到端性能没有超过 bitsandbytes。
 
-性能剖析结果与以下假设一致：INT4 去量化在 matmul 前引入了额外的全局内存流量。在内存带宽受限的 GPU 上，这会降低有效算术强度：
+![逐层 latency](outputs/fig1_layerwise_latency.png)
 
-- **FP16：** ~1 FLOP/Byte
-- **INT4（bitsandbytes）：** ~0.44 FLOP/Byte
+![INT4 relative slowdown 最大的层](outputs/fig3_top10_slowest.png)
 
-算术强度越低，在内存受限的 GPU 上执行越慢——decode 阶段始终处于内存受限区间（RTX 4060 Laptop 脊点：80 FLOP/Byte）。
+## 图表怎么读
 
-最惨的层是 `k_proj` 和 `v_proj`。Qwen2.5-1.5B 使用 GQA（Grouped Query Attention），这两个投影的输出维度只有 256，而其他投影是 1536。FLOP 少、去量化开销相同 → **每层最高比 FP16 慢约 380%（4–5 倍）**。
+- **图 1：逐层 decode slowdown：** y 轴是 INT4 相对 FP16 的 latency 变化；橙色点单独标出 `k_proj`/`v_proj`，回答 slowdown 是局部还是广泛分布。
+- **图 2：Peak allocated VRAM：** 直接比较三种模式的显存基线；它不再冒充 KV-cache growth 图，因为本实验没有单独隔离 cache 增长。
+- **图 3：Top-10 layer cost：** 优化优先级列表；橙色是 k/v projections，灰色是其他层。
+- **图 4：Storage-traffic Roofline：** 浅色点是单层结果，X 是模式 median；所有 median 都远在 ridge point 左侧，这张图用于定位 workload，不是 slowdown 的因果解释。
 
-![各层延迟对比：FP16 vs INT4 decode](outputs/fig1_layerwise_latency.png)
-![Roofline 分析](outputs/fig4_roofline.png)
+## 测量设计
 
----
+`scripts/run_benchmark.py` 明确拆分两条路径：
 
-## 方法
+- `--measurement-mode e2e`：不注册任何 hooks；prefill 和 decode 使用同一条指定长度的 prompt；固定生成 decode steps；输出 wall time、throughput、peak allocated/reserved VRAM。
+- `--measurement-mode profile`：给 197 个目标层注册 CUDA Event hooks 并输出逐层 CSV。逐层同步会改变 wall time，因此 profile run 不进入主性能结果。
 
-### 1. 逐层性能剖析
-
-在模型所有 `nn.Linear` 和 `Linear4bit` 层上注册 CUDA Event hook，手动驱动 decode 循环（逐 token，不使用 `model.generate()`），记录每步的计时、显存快照和输入形状，每次运行采集 6300+ 条层调用记录。
-
-### 2. Roofline 分析
-
-计算 FP16 和 INT4 两种制式下各层的算术强度。所有 decode 层均深陷内存受限区间。INT4 去量化使算术强度在 Roofline 图上进一步左移——与量化本该带来的收益相反。
-
-### 3. 融合 Triton 内核
-
-编写自定义 Triton GEMV 内核，在内核内部完成去量化后再做累加，避免将去量化权重具象化为独立的中间张量。将全部 28 个注意力层的 `k_proj` 和 `v_proj`（共 56 个投影）替换为 `FusedFP4Linear`，直接调用该内核。
-
----
+Canonical runner 会在 FP16、INT4、INT4-fused-k/v 三种模式下分别执行两条路径，记录 package、GPU、driver 与 Git metadata，重新生成四张图，并写出公开报告和 JSON summary。
 
 ## 复现
 
-> 需要 WSL2 Ubuntu。bitsandbytes 和 Triton 不支持 Windows 原生环境。
+在带 NVIDIA GPU 的 WSL2 中运行：
 
 ```bash
-bash setup.sh && source venv/bin/activate
-
-python scripts/run_benchmark.py --quantization fp16 --prompt-len 512 --max-new-tokens 128
-python scripts/run_benchmark.py --quantization int4 --prompt-len 512 --max-new-tokens 128
-python scripts/run_benchmark.py --quantization int4-fused-kv --prompt-len 512 --max-new-tokens 128
-
-python scripts/run_analysis.py
+bash setup.sh
+source ~/.venvs/llm-quant-profiler/bin/activate
+python scripts/run_phase3.py --local-files-only
 ```
 
-模型：`Qwen/Qwen2.5-1.5B-Instruct`（首次运行约下载 3GB）。结果写入 `data/`（gitignore）。图表写入 `outputs/`。
+如果 Hugging Face model 尚未缓存，第一次运行时移除 `--local-files-only`。
 
----
+快速 E2E smoke test：
 
-## 局限性
+```bash
+python scripts/run_benchmark.py \
+  --quantization fp16 \
+  --measurement-mode e2e \
+  --prompt-len 32 \
+  --max-new-tokens 8 \
+  --warmup-runs 0 \
+  --repeats 1
+```
 
-融合内核面向 GEMV 设计：每次处理一个 token（序列长度 = 1），即 decode 模式。Prefill 将完整序列一次性送入模型，需要 GEMM 而非 GEMV。因此融合 k/v 内核提升了 decode 吞吐量，但显著拖慢了 prefill（0.27s → 3.20s）。优化 prefill 是独立的问题，需要不同的内核设计。
+Raw metadata 和 layer CSV 写入 gitignored `data/`。公开 artifacts 写入 `results/canonical.json`、`PHASE3_REPORT.md` 和 `outputs/`。
 
-仅替换了 `k_proj` 和 `v_proj`，其余 `Linear4bit` 层仍使用 bitsandbytes。
+## 解释边界
 
----
-
-[English README](README.md)
+- 结果只对应单一模型、单一消费级 GPU、batch size 1 和上方列出的软件版本。
+- Roofline 图只估算 packed FP4 storage 和 block scales，不包含 unpack/codebook/scale instruction cost、occupancy 或 cache behavior。
+- Slowdown 本身已经测量确认，但确切 CUDA-kernel bottleneck 仍需 Nsight 或同等级 kernel profiling。
+- 自定义 kernel 只替换 56 个 k/v projections，不是通用 INT4 inference engine，也不能外推到 production fused kernels。

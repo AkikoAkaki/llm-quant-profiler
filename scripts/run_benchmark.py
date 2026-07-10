@@ -358,6 +358,26 @@ def _git_dirty(repo_root: Path) -> bool | None:
         return None
 
 
+def _host_power_plan() -> str | None:
+    """Record the active Windows plan when the benchmark runs under WSL."""
+    if platform.system() != "Linux":
+        return None
+    try:
+        release = Path("/proc/sys/kernel/osrelease").read_text(encoding="utf-8")
+    except OSError:
+        return None
+    if "microsoft" not in release.lower():
+        return None
+    return _command_output(
+        [
+            "powershell.exe",
+            "-NoProfile",
+            "-Command",
+            "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; powercfg /getactivescheme",
+        ]
+    )
+
+
 def collect_environment() -> dict:
     repo_root = Path(__file__).resolve().parents[1]
     git_commit = _command_output(["git", "-C", str(repo_root), "rev-parse", "HEAD"])
@@ -375,6 +395,7 @@ def collect_environment() -> dict:
         "nvidia_driver_version": _command_output(
             ["nvidia-smi", "--query-gpu=driver_version", "--format=csv,noheader"]
         ),
+        "host_power_plan": _host_power_plan(),
         "git_commit": git_commit,
         "git_dirty": _git_dirty(repo_root),
     }

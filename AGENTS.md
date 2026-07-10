@@ -12,12 +12,16 @@ For eligible batch-1 decode shapes, bitsandbytes 0.49.2 dispatches to a dedicate
 - Target model: `Qwen/Qwen2.5-1.5B-Instruct`.
 - Create the locked WSL environment with `bash setup.sh`.
 - Activate the default Linux-filesystem environment with `source ~/.venvs/llm-quant-profiler/bin/activate`, then use `python` for documented commands.
+- On a Windows laptop, use `scripts/run_phase3_windows.ps1` for a canonical run so the active host power plan is controlled and recorded.
 
 ## Commands
 
 ```bash
 # Canonical three-mode workflow: no-hook E2E + diagnostic profile
 python scripts/run_phase3.py --local-files-only
+
+# Windows host wrapper: temporarily selects High performance and restores the prior plan
+.\scripts\run_phase3_windows.ps1 -LocalFilesOnly
 
 # Small no-hook smoke test
 python scripts/run_benchmark.py \

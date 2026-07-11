@@ -73,6 +73,20 @@ def write_report(
     int4_delta = comparisons["int4_decode_latency_change_vs_fp16_pct"]
     fused_delta = comparisons["fused_decode_latency_change_vs_int4_pct"]
     vram_reduction = comparisons["int4_peak_vram_reduction_vs_fp16_pct"]
+    top = _fused_top10(tax_layers, dfs)
+    kv_count = (
+        int(
+            top["layer_name"].str.contains(r"\.self_attn\.[kv]_proj$").sum()
+        )
+        if not top.empty
+        else 0
+    )
+    if kv_count == len(top):
+        top_description = "In this run, all ten entries are k/v projections."
+    else:
+        top_description = (
+            f"In this run, {kv_count} of the ten entries are k/v projections."
+        )
 
     lines = [
         "# Phase 3 Quantization Tax Report",
@@ -82,7 +96,7 @@ def write_report(
         "- Primary performance numbers come from an end-to-end path with no profiler hooks attached.",
         "- Per-layer CUDA Event timings are diagnostic measurements and are reported separately.",
         f"- bitsandbytes INT4 decode is **{_fmt_change(int4_delta)}** than FP16.",
-        f"- The fused k/v prototype is **{_fmt_change(fused_delta)}** than bitsandbytes INT4.",
+        f"- The fused k/v prototype differs by **{fused_delta:.1f}%** from bitsandbytes INT4; this run does not demonstrate an end-to-end gain.",
         f"- INT4 peak allocated VRAM is **{vram_reduction:.1f}% lower** than FP16.",
         "",
         "## Experiment Setup",
@@ -99,6 +113,8 @@ def write_report(
         f"- Python / PyTorch / CUDA: `{environment['python_version']}` / `{environment['torch_version']}` / `{environment['torch_cuda_version']}`",
         f"- Transformers / bitsandbytes / Triton: `{environment['transformers_version']}` / `{environment['bitsandbytes_version']}` / `{environment['triton_version']}`",
         f"- NVIDIA driver: `{environment['nvidia_driver_version']}`",
+        f"- Windows host power plan: `{environment['host_power_plan']}`",
+        f"- Git commit / dirty: `{environment['git_commit']}` / `{environment['git_dirty']}`",
         "- Retained decode CV by mode: "
         + ", ".join(
             f"`{mode}` {stability['by_mode'][mode]['retained_cv_pct']:.1f}%"
@@ -127,7 +143,7 @@ def write_report(
         "",
         "## How to Read the Figures",
         "",
-        "These figures come from diagnostic profile runs with CUDA Event hooks. They explain where the slowdown is concentrated; they are not the source of the E2E table above.",
+        "Figures 1, 3, and 4 come from diagnostic profile runs with CUDA Event hooks. Figure 2 uses canonical E2E peak-memory data. The diagnostic figures explain where the slowdown is concentrated; they are not the source of the E2E table above.",
         "",
         "### Figure 1: Decode slowdown across all layers",
         "",
@@ -137,7 +153,7 @@ def write_report(
         "",
         "### Figure 2: Peak allocated VRAM by mode",
         "",
-        f"![Allocated memory during instrumented decode]({_relative_path(report_path, output_dir / 'fig2_memory_growth.png')})",
+        f"![Canonical E2E peak allocated memory]({_relative_path(report_path, output_dir / 'fig2_memory_growth.png')})",
         "",
         "This is a memory comparison, not a KV-cache growth curve. The main readout is the lower INT4 baseline and whether the fused prototype changes it.",
         "",
@@ -145,7 +161,8 @@ def write_report(
         "",
         f"![Largest INT4 slowdowns]({_relative_path(report_path, output_dir / 'fig3_top10_slowest.png')})",
         "",
-        "This is the optimization priority list. Orange bars are k/v projections; gray bars are other layers. In this run, nine of the ten largest relative slowdowns are k/v, with one MLP outlier.",
+        "This is the optimization priority list. Orange bars are k/v projections; gray bars are other layers. "
+        + top_description,
         "",
         "### Figure 4: Storage-traffic Roofline estimate",
         "",
@@ -159,7 +176,6 @@ def write_report(
         "|-------|--------------|--------------|---------------|---------------|",
     ]
 
-    top = _fused_top10(tax_layers, dfs)
     for _, row in top.iterrows():
         fused = row.get("time_ms_mean_fused")
         fused_text = "n/a" if pd.isna(fused) else f"{fused:.3f}"
@@ -182,6 +198,7 @@ def write_report(
         f"- Machine-readable summary: `{_relative_path(report_path, canonical_path)}`",
         "- Raw E2E metadata and layer CSVs are generated under `data/phase3/` and intentionally gitignored.",
         "- Recreate all public artifacts from WSL after activating the setup environment: `python scripts/run_phase3.py --local-files-only`.",
+        "- On this Windows laptop, use `powershell -ExecutionPolicy Bypass -File scripts/run_phase3_windows.ps1 -LocalFilesOnly` to temporarily select and then restore the High performance host plan.",
         "",
     ]
     report_path.write_text("\n".join(lines), encoding="utf-8")
@@ -222,7 +239,7 @@ def main():
 
     output_dir.mkdir(parents=True, exist_ok=True)
     plot_layerwise_latency(dfs, str(output_dir))
-    plot_memory_growth(dfs, str(output_dir))
+    plot_memory_growth(canonical, str(output_dir))
     plot_top10_slowest(dfs, str(output_dir))
     plot_roofline(dfs, str(output_dir))
     canonical_path.parent.mkdir(parents=True, exist_ok=True)

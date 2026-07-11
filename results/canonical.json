@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
-  "generated_at_utc": "2026-07-10T13:24:13.970252+00:00",
+  "generated_at_utc": "2026-07-11T04:23:56.773104+00:00",
   "config": {
     "model": "Qwen/Qwen2.5-1.5B-Instruct",
     "prompt_len": 512,
     "max_new_tokens": 128,
-    "warmup_runs": 2,
-    "repeats": 5
+    "warmup_runs": 8,
+    "repeats": 7
   },
   "environment_by_mode": {
     "fp16": {
@@ -21,8 +21,9 @@
       "gpu_name": "NVIDIA GeForce RTX 4060 Laptop GPU",
       "gpu_total_memory_mb": 8585.216,
       "nvidia_driver_version": "610.47",
-      "git_commit": "46ce4c9ccc34b0757409eaa180a981660aa77015",
-      "git_dirty": true
+      "host_power_plan": "电源方案 GUID: 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c  (高性能)",
+      "git_commit": "b2926d1cfb4db5418a7f42e9b858f578511d479c",
+      "git_dirty": false
     },
     "int4": {
       "host_platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.31",
@@ -36,8 +37,9 @@
       "gpu_name": "NVIDIA GeForce RTX 4060 Laptop GPU",
       "gpu_total_memory_mb": 8585.216,
       "nvidia_driver_version": "610.47",
-      "git_commit": "46ce4c9ccc34b0757409eaa180a981660aa77015",
-      "git_dirty": true
+      "host_power_plan": "电源方案 GUID: 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c  (高性能)",
+      "git_commit": "b2926d1cfb4db5418a7f42e9b858f578511d479c",
+      "git_dirty": false
     },
     "int4-fused-kv": {
       "host_platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.31",
@@ -51,86 +53,261 @@
       "gpu_name": "NVIDIA GeForce RTX 4060 Laptop GPU",
       "gpu_total_memory_mb": 8585.216,
       "nvidia_driver_version": "610.47",
-      "git_commit": "46ce4c9ccc34b0757409eaa180a981660aa77015",
-      "git_dirty": true
+      "host_power_plan": "电源方案 GUID: 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c  (高性能)",
+      "git_commit": "b2926d1cfb4db5418a7f42e9b858f578511d479c",
+      "git_dirty": false
     }
   },
   "modes": {
     "fp16": {
       "runs": [
         {
-          "prefill_time_s": 0.06761674200004109,
-          "decode_time_s": 5.540631521000023,
+          "prefill_time_s": 0.07336604900001475,
+          "prefill_cuda_time_s": 0.0730613784790039,
+          "decode_time_s": 9.753254881999965,
+          "decode_cuda_time_s": 9.7533154296875,
           "decode_steps": 128,
-          "decode_throughput_tps": 23.10205966862373,
+          "decode_throughput_tps": 13.123823948888006,
           "peak_vram_mb": 3271.252992,
           "peak_reserved_vram_mb": 3319.791616,
+          "gpu_before": {
+            "pstate": "P0",
+            "temperature_c": 69.0,
+            "graphics_clock_mhz": 2505.0,
+            "memory_clock_mhz": 8001.0,
+            "power_w": 36.37,
+            "utilization_pct": 8.0,
+            "memory_used_mb": 3711.0
+          },
+          "gpu_after": {
+            "pstate": "P0",
+            "temperature_c": 69.0,
+            "graphics_clock_mhz": 2505.0,
+            "memory_clock_mhz": 8001.0,
+            "power_w": 37.43,
+            "utilization_pct": 3.0,
+            "memory_used_mb": 3711.0
+          },
           "run_index": 1
         },
         {
-          "prefill_time_s": 0.06676077000008718,
-          "decode_time_s": 6.259274469000047,
+          "prefill_time_s": 0.08093721300008383,
+          "prefill_cuda_time_s": 0.0806266860961914,
+          "decode_time_s": 9.628374260999976,
+          "decode_cuda_time_s": 9.6282880859375,
           "decode_steps": 128,
-          "decode_throughput_tps": 20.449654450198395,
+          "decode_throughput_tps": 13.29404077264299,
           "peak_vram_mb": 3271.252992,
           "peak_reserved_vram_mb": 3319.791616,
+          "gpu_before": {
+            "pstate": "P0",
+            "temperature_c": 69.0,
+            "graphics_clock_mhz": 2505.0,
+            "memory_clock_mhz": 8001.0,
+            "power_w": 37.73,
+            "utilization_pct": 13.0,
+            "memory_used_mb": 3711.0
+          },
+          "gpu_after": {
+            "pstate": "P0",
+            "temperature_c": 71.0,
+            "graphics_clock_mhz": 2505.0,
+            "memory_clock_mhz": 8001.0,
+            "power_w": 39.85,
+            "utilization_pct": 10.0,
+            "memory_used_mb": 3711.0
+          },
           "run_index": 2
         },
         {
-          "prefill_time_s": 0.06790467500002251,
-          "decode_time_s": 5.232972146999941,
+          "prefill_time_s": 0.08073899999999412,
+          "prefill_cuda_time_s": 0.08050688171386719,
+          "decode_time_s": 9.963830710000025,
+          "decode_cuda_time_s": 9.9638505859375,
           "decode_steps": 128,
-          "decode_throughput_tps": 24.460286889427127,
+          "decode_throughput_tps": 12.846464750904994,
           "peak_vram_mb": 3271.252992,
           "peak_reserved_vram_mb": 3319.791616,
+          "gpu_before": {
+            "pstate": "P0",
+            "temperature_c": 71.0,
+            "graphics_clock_mhz": 2505.0,
+            "memory_clock_mhz": 8001.0,
+            "power_w": 39.85,
+            "utilization_pct": 28.0,
+            "memory_used_mb": 3711.0
+          },
+          "gpu_after": {
+            "pstate": "P0",
+            "temperature_c": 70.0,
+            "graphics_clock_mhz": 2505.0,
+            "memory_clock_mhz": 8001.0,
+            "power_w": 35.09,
+            "utilization_pct": 14.0,
+            "memory_used_mb": 3711.0
+          },
           "run_index": 3
         },
         {
-          "prefill_time_s": 0.12334892499995931,
-          "decode_time_s": 4.836553339000034,
+          "prefill_time_s": 0.08206023600007484,
+          "prefill_cuda_time_s": 0.08179507446289062,
+          "decode_time_s": 10.635261569000022,
+          "decode_cuda_time_s": 10.6350810546875,
           "decode_steps": 128,
-          "decode_throughput_tps": 26.465127339309824,
+          "decode_throughput_tps": 12.035435063778612,
           "peak_vram_mb": 3271.252992,
           "peak_reserved_vram_mb": 3319.791616,
+          "gpu_before": {
+            "pstate": "P0",
+            "temperature_c": 70.0,
+            "graphics_clock_mhz": 2505.0,
+            "memory_clock_mhz": 8001.0,
+            "power_w": 35.09,
+            "utilization_pct": 14.0,
+            "memory_used_mb": 3711.0
+          },
+          "gpu_after": {
+            "pstate": "P0",
+            "temperature_c": 70.0,
+            "graphics_clock_mhz": 2505.0,
+            "memory_clock_mhz": 8001.0,
+            "power_w": 38.62,
+            "utilization_pct": 22.0,
+            "memory_used_mb": 3711.0
+          },
           "run_index": 4
         },
         {
-          "prefill_time_s": 0.06833663899999465,
-          "decode_time_s": 6.200214621999976,
+          "prefill_time_s": 0.39339097499998843,
+          "prefill_cuda_time_s": 0.39291290283203123,
+          "decode_time_s": 11.870678594000083,
+          "decode_cuda_time_s": 11.87054296875,
           "decode_steps": 128,
-          "decode_throughput_tps": 20.644446652834027,
+          "decode_throughput_tps": 10.7828713402026,
           "peak_vram_mb": 3271.252992,
           "peak_reserved_vram_mb": 3319.791616,
+          "gpu_before": {
+            "pstate": "P0",
+            "temperature_c": 70.0,
+            "graphics_clock_mhz": 2505.0,
+            "memory_clock_mhz": 8001.0,
+            "power_w": 36.91,
+            "utilization_pct": 24.0,
+            "memory_used_mb": 3711.0
+          },
+          "gpu_after": {
+            "pstate": "P3",
+            "temperature_c": 69.0,
+            "graphics_clock_mhz": 2250.0,
+            "memory_clock_mhz": 7001.0,
+            "power_w": 30.33,
+            "utilization_pct": 9.0,
+            "memory_used_mb": 3711.0
+          },
           "run_index": 5
+        },
+        {
+          "prefill_time_s": 0.2813890069999161,
+          "prefill_cuda_time_s": 0.2796810302734375,
+          "decode_time_s": 11.553857278999999,
+          "decode_cuda_time_s": 11.5537607421875,
+          "decode_steps": 128,
+          "decode_throughput_tps": 11.078551249949191,
+          "peak_vram_mb": 3271.252992,
+          "peak_reserved_vram_mb": 3319.791616,
+          "gpu_before": {
+            "pstate": "P3",
+            "temperature_c": 69.0,
+            "graphics_clock_mhz": 2250.0,
+            "memory_clock_mhz": 7001.0,
+            "power_w": 29.66,
+            "utilization_pct": 12.0,
+            "memory_used_mb": 3711.0
+          },
+          "gpu_after": {
+            "pstate": "P0",
+            "temperature_c": 69.0,
+            "graphics_clock_mhz": 2250.0,
+            "memory_clock_mhz": 8001.0,
+            "power_w": 30.02,
+            "utilization_pct": 5.0,
+            "memory_used_mb": 3711.0
+          },
+          "run_index": 6
+        },
+        {
+          "prefill_time_s": 0.08429533100002118,
+          "prefill_cuda_time_s": 0.08385126495361328,
+          "decode_time_s": 12.588351130999968,
+          "decode_cuda_time_s": 12.5831435546875,
+          "decode_steps": 128,
+          "decode_throughput_tps": 10.168130731973966,
+          "peak_vram_mb": 3271.252992,
+          "peak_reserved_vram_mb": 3319.791616,
+          "gpu_before": {
+            "pstate": "P0",
+            "temperature_c": 69.0,
+            "graphics_clock_mhz": 2250.0,
+            "memory_clock_mhz": 8001.0,
+            "power_w": 30.14,
+            "utilization_pct": 11.0,
+            "memory_used_mb": 3711.0
+          },
+          "gpu_after": {
+            "pstate": "P0",
+            "temperature_c": 69.0,
+            "graphics_clock_mhz": 2250.0,
+            "memory_clock_mhz": 8001.0,
+            "power_w": 31.65,
+            "utilization_pct": 15.0,
+            "memory_used_mb": 3711.0
+          },
+          "run_index": 7
         }
       ],
       "summary": {
         "prefill_time_s": {
-          "count": 5,
-          "median": 0.06790467500002251,
-          "mean": 0.07879355020002095,
-          "std": 0.02491387595000231,
-          "min": 0.06676077000008718,
-          "max": 0.12334892499995931
+          "count": 7,
+          "median": 0.08206023600007484,
+          "mean": 0.1537396872857276,
+          "std": 0.12959987990010563,
+          "min": 0.07336604900001475,
+          "max": 0.39339097499998843
+        },
+        "prefill_cuda_time_s": {
+          "count": 7,
+          "median": 0.08179507446289062,
+          "mean": 0.1532050312587193,
+          "std": 0.1293193792295623,
+          "min": 0.0730613784790039,
+          "max": 0.39291290283203123
         },
         "decode_time_s": {
-          "count": 5,
-          "median": 5.540631521000023,
-          "mean": 5.613929219600005,
-          "std": 0.6154297619373683,
-          "min": 4.836553339000034,
-          "max": 6.259274469000047
+          "count": 7,
+          "median": 10.635261569000022,
+          "mean": 10.856229775142863,
+          "std": 1.1608488811887818,
+          "min": 9.628374260999976,
+          "max": 12.588351130999968
+        },
+        "decode_cuda_time_s": {
+          "count": 7,
+          "median": 10.6350810546875,
+          "mean": 10.855426060267858,
+          "std": 1.159534073408747,
+          "min": 9.6282880859375,
+          "max": 12.5831435546875
         },
         "decode_throughput_tps": {
-          "count": 5,
-          "median": 23.10205966862373,
-          "mean": 23.024315000078623,
-          "std": 2.559291862587104,
-          "min": 20.449654450198395,
-          "max": 26.465127339309824
+          "count": 7,
+          "median": 12.035435063778612,
+          "mean": 11.904188265477194,
+          "std": 1.2434653042290806,
+          "min": 10.168130731973966,
+          "max": 13.29404077264299
         },
         "peak_vram_mb": {
-          "count": 5,
+          "count": 7,
           "median": 3271.252992,
           "mean": 3271.252992,
           "std": 0.0,
@@ -138,7 +315,7 @@
           "max": 3271.252992
         },
         "peak_reserved_vram_mb": {
-          "count": 5,
+          "count": 7,
           "median": 3319.791616,
           "mean": 3319.791616,
           "std": 0.0,
@@ -150,190 +327,576 @@
     "int4": {
       "runs": [
         {
-          "prefill_time_s": 0.35492276899992703,
-          "decode_time_s": 24.024072562000015,
+          "prefill_time_s": 0.13810589799993522,
+          "prefill_cuda_time_s": 0.13792051696777344,
+          "decode_time_s": 11.36247426500006,
+          "decode_cuda_time_s": 11.3625244140625,
           "decode_steps": 128,
-          "decode_throughput_tps": 5.32798923536651,
-          "peak_vram_mb": 1423.926784,
-          "peak_reserved_vram_mb": 3076.521984,
+          "decode_throughput_tps": 11.26515202716715,
+          "peak_vram_mb": 1423.533568,
+          "peak_reserved_vram_mb": 3047.161856,
+          "gpu_before": {
+            "pstate": "P0",
+            "temperature_c": 68.0,
+            "graphics_clock_mhz": 2250.0,
+            "memory_clock_mhz": 8001.0,
+            "power_w": 31.89,
+            "utilization_pct": 22.0,
+            "memory_used_mb": 3457.0
+          },
+          "gpu_after": {
+            "pstate": "P0",
+            "temperature_c": 68.0,
+            "graphics_clock_mhz": 2250.0,
+            "memory_clock_mhz": 8001.0,
+            "power_w": 27.75,
+            "utilization_pct": 6.0,
+            "memory_used_mb": 3457.0
+          },
           "run_index": 1
         },
         {
-          "prefill_time_s": 0.2685614420000775,
-          "decode_time_s": 24.31910602800008,
+          "prefill_time_s": 0.4148125039999968,
+          "prefill_cuda_time_s": 0.41460223388671874,
+          "decode_time_s": 15.706434242,
+          "decode_cuda_time_s": 15.7063759765625,
           "decode_steps": 128,
-          "decode_throughput_tps": 5.263351368780816,
-          "peak_vram_mb": 1423.926784,
-          "peak_reserved_vram_mb": 3076.521984,
+          "decode_throughput_tps": 8.149526367844835,
+          "peak_vram_mb": 1423.533568,
+          "peak_reserved_vram_mb": 3047.161856,
+          "gpu_before": {
+            "pstate": "P0",
+            "temperature_c": 68.0,
+            "graphics_clock_mhz": 2250.0,
+            "memory_clock_mhz": 8001.0,
+            "power_w": 27.75,
+            "utilization_pct": 6.0,
+            "memory_used_mb": 3457.0
+          },
+          "gpu_after": {
+            "pstate": "P0",
+            "temperature_c": 67.0,
+            "graphics_clock_mhz": 2250.0,
+            "memory_clock_mhz": 8001.0,
+            "power_w": 25.2,
+            "utilization_pct": 1.0,
+            "memory_used_mb": 3457.0
+          },
           "run_index": 2
         },
         {
-          "prefill_time_s": 0.2624871159999884,
-          "decode_time_s": 23.640052967000088,
+          "prefill_time_s": 0.16364685099995313,
+          "prefill_cuda_time_s": 0.16327577209472657,
+          "decode_time_s": 15.811771823999948,
+          "decode_cuda_time_s": 15.8119208984375,
           "decode_steps": 128,
-          "decode_throughput_tps": 5.414539475807407,
-          "peak_vram_mb": 1423.926784,
-          "peak_reserved_vram_mb": 3076.521984,
+          "decode_throughput_tps": 8.095234450937042,
+          "peak_vram_mb": 1423.533568,
+          "peak_reserved_vram_mb": 3047.161856,
+          "gpu_before": {
+            "pstate": "P3",
+            "temperature_c": 67.0,
+            "graphics_clock_mhz": 2250.0,
+            "memory_clock_mhz": 8001.0,
+            "power_w": 24.52,
+            "utilization_pct": 0.0,
+            "memory_used_mb": 3457.0
+          },
+          "gpu_after": {
+            "pstate": "P0",
+            "temperature_c": 67.0,
+            "graphics_clock_mhz": 2250.0,
+            "memory_clock_mhz": 8001.0,
+            "power_w": 26.18,
+            "utilization_pct": 15.0,
+            "memory_used_mb": 3457.0
+          },
           "run_index": 3
         },
         {
-          "prefill_time_s": 0.2876484270000219,
-          "decode_time_s": 25.723861289999945,
+          "prefill_time_s": 0.146120083000028,
+          "prefill_cuda_time_s": 0.14594047546386718,
+          "decode_time_s": 15.088926383000057,
+          "decode_cuda_time_s": 15.08902734375,
           "decode_steps": 128,
-          "decode_throughput_tps": 4.975924825475541,
-          "peak_vram_mb": 1423.926784,
-          "peak_reserved_vram_mb": 3076.521984,
+          "decode_throughput_tps": 8.483042249063606,
+          "peak_vram_mb": 1423.533568,
+          "peak_reserved_vram_mb": 3047.161856,
+          "gpu_before": {
+            "pstate": "P0",
+            "temperature_c": 67.0,
+            "graphics_clock_mhz": 2250.0,
+            "memory_clock_mhz": 8001.0,
+            "power_w": 26.45,
+            "utilization_pct": 15.0,
+            "memory_used_mb": 3457.0
+          },
+          "gpu_after": {
+            "pstate": "P0",
+            "temperature_c": 67.0,
+            "graphics_clock_mhz": 2250.0,
+            "memory_clock_mhz": 8001.0,
+            "power_w": 28.08,
+            "utilization_pct": 7.0,
+            "memory_used_mb": 3457.0
+          },
           "run_index": 4
         },
         {
-          "prefill_time_s": 0.3065524969999842,
-          "decode_time_s": 24.699750642000026,
+          "prefill_time_s": 0.13759609700002784,
+          "prefill_cuda_time_s": 0.13742489624023438,
+          "decode_time_s": 14.597571714000082,
+          "decode_cuda_time_s": 14.5976552734375,
           "decode_steps": 128,
-          "decode_throughput_tps": 5.182238551928773,
-          "peak_vram_mb": 1423.926784,
-          "peak_reserved_vram_mb": 3076.521984,
+          "decode_throughput_tps": 8.768581686585526,
+          "peak_vram_mb": 1423.533568,
+          "peak_reserved_vram_mb": 3047.161856,
+          "gpu_before": {
+            "pstate": "P0",
+            "temperature_c": 67.0,
+            "graphics_clock_mhz": 2250.0,
+            "memory_clock_mhz": 8001.0,
+            "power_w": 27.77,
+            "utilization_pct": 16.0,
+            "memory_used_mb": 3457.0
+          },
+          "gpu_after": {
+            "pstate": "P0",
+            "temperature_c": 67.0,
+            "graphics_clock_mhz": 2250.0,
+            "memory_clock_mhz": 8001.0,
+            "power_w": 27.03,
+            "utilization_pct": 10.0,
+            "memory_used_mb": 3457.0
+          },
           "run_index": 5
+        },
+        {
+          "prefill_time_s": 0.13994840600003045,
+          "prefill_cuda_time_s": 0.13925581359863282,
+          "decode_time_s": 16.673858516999985,
+          "decode_cuda_time_s": 16.67315625,
+          "decode_steps": 128,
+          "decode_throughput_tps": 7.676687424779119,
+          "peak_vram_mb": 1423.533568,
+          "peak_reserved_vram_mb": 3047.161856,
+          "gpu_before": {
+            "pstate": "P0",
+            "temperature_c": 67.0,
+            "graphics_clock_mhz": 2250.0,
+            "memory_clock_mhz": 8001.0,
+            "power_w": 26.96,
+            "utilization_pct": 0.0,
+            "memory_used_mb": 3457.0
+          },
+          "gpu_after": {
+            "pstate": "P0",
+            "temperature_c": 67.0,
+            "graphics_clock_mhz": 2250.0,
+            "memory_clock_mhz": 7001.0,
+            "power_w": 26.39,
+            "utilization_pct": 19.0,
+            "memory_used_mb": 3457.0
+          },
+          "run_index": 6
+        },
+        {
+          "prefill_time_s": 0.35990914999990764,
+          "prefill_cuda_time_s": 0.3596380310058594,
+          "decode_time_s": 16.377292829999988,
+          "decode_cuda_time_s": 16.3774365234375,
+          "decode_steps": 128,
+          "decode_throughput_tps": 7.815699537687274,
+          "peak_vram_mb": 1423.533568,
+          "peak_reserved_vram_mb": 3047.161856,
+          "gpu_before": {
+            "pstate": "P0",
+            "temperature_c": 67.0,
+            "graphics_clock_mhz": 2250.0,
+            "memory_clock_mhz": 7001.0,
+            "power_w": 26.46,
+            "utilization_pct": 19.0,
+            "memory_used_mb": 3457.0
+          },
+          "gpu_after": {
+            "pstate": "P0",
+            "temperature_c": 67.0,
+            "graphics_clock_mhz": 2250.0,
+            "memory_clock_mhz": 8001.0,
+            "power_w": 27.8,
+            "utilization_pct": 22.0,
+            "memory_used_mb": 3457.0
+          },
+          "run_index": 7
         }
       ],
       "summary": {
         "prefill_time_s": {
-          "count": 5,
-          "median": 0.2876484270000219,
-          "mean": 0.2960344501999998,
-          "std": 0.03717855092711167,
-          "min": 0.2624871159999884,
-          "max": 0.35492276899992703
+          "count": 7,
+          "median": 0.146120083000028,
+          "mean": 0.2143055698571256,
+          "std": 0.11960958757417604,
+          "min": 0.13759609700002784,
+          "max": 0.4148125039999968
+        },
+        "prefill_cuda_time_s": {
+          "count": 7,
+          "median": 0.14594047546386718,
+          "mean": 0.21400824846540178,
+          "std": 0.11964897664354665,
+          "min": 0.13742489624023438,
+          "max": 0.41460223388671874
         },
         "decode_time_s": {
-          "count": 5,
-          "median": 24.31910602800008,
-          "mean": 24.48136869780003,
-          "std": 0.7960432783372884,
-          "min": 23.640052967000088,
-          "max": 25.723861289999945
+          "count": 7,
+          "median": 15.706434242,
+          "mean": 15.088332825000018,
+          "std": 1.7890216968573847,
+          "min": 11.36247426500006,
+          "max": 16.673858516999985
+        },
+        "decode_cuda_time_s": {
+          "count": 7,
+          "median": 15.7063759765625,
+          "mean": 15.088299525669642,
+          "std": 1.788920713735083,
+          "min": 11.3625244140625,
+          "max": 16.67315625
         },
         "decode_throughput_tps": {
-          "count": 5,
-          "median": 5.263351368780816,
-          "mean": 5.232808691471809,
-          "std": 0.16700668300334234,
-          "min": 4.975924825475541,
-          "max": 5.414539475807407
+          "count": 7,
+          "median": 8.149526367844835,
+          "mean": 8.607703392009222,
+          "std": 1.2295030779589389,
+          "min": 7.676687424779119,
+          "max": 11.26515202716715
         },
         "peak_vram_mb": {
-          "count": 5,
-          "median": 1423.926784,
-          "mean": 1423.926784,
+          "count": 7,
+          "median": 1423.533568,
+          "mean": 1423.533568,
           "std": 0.0,
-          "min": 1423.926784,
-          "max": 1423.926784
+          "min": 1423.533568,
+          "max": 1423.533568
         },
         "peak_reserved_vram_mb": {
-          "count": 5,
-          "median": 3076.521984,
-          "mean": 3076.521984,
+          "count": 7,
+          "median": 3047.161856,
+          "mean": 3047.161856,
           "std": 0.0,
-          "min": 3076.521984,
-          "max": 3076.521984
+          "min": 3047.161856,
+          "max": 3047.161856
         }
       }
     },
     "int4-fused-kv": {
       "runs": [
         {
-          "prefill_time_s": 6.2556751680001526,
-          "decode_time_s": 36.89503689999992,
+          "prefill_time_s": 5.289880272999881,
+          "prefill_cuda_time_s": 5.28978125,
+          "decode_time_s": 26.77625274800016,
+          "decode_cuda_time_s": 26.77669140625,
           "decode_steps": 128,
-          "decode_throughput_tps": 3.469301314074584,
-          "peak_vram_mb": 1434.994176,
-          "peak_reserved_vram_mb": 3202.351104,
+          "decode_throughput_tps": 4.780355235090165,
+          "peak_vram_mb": 1439.319552,
+          "peak_reserved_vram_mb": 3015.704576,
+          "gpu_before": {
+            "pstate": "P0",
+            "temperature_c": 67.0,
+            "graphics_clock_mhz": 2250.0,
+            "memory_clock_mhz": 8001.0,
+            "power_w": 25.67,
+            "utilization_pct": 0.0,
+            "memory_used_mb": 3427.0
+          },
+          "gpu_after": {
+            "pstate": "P0",
+            "temperature_c": 67.0,
+            "graphics_clock_mhz": 2250.0,
+            "memory_clock_mhz": 8001.0,
+            "power_w": 26.31,
+            "utilization_pct": 11.0,
+            "memory_used_mb": 3427.0
+          },
           "run_index": 1
         },
         {
-          "prefill_time_s": 8.20792673799997,
-          "decode_time_s": 42.147808264000105,
+          "prefill_time_s": 6.58408683000016,
+          "prefill_cuda_time_s": 6.58355908203125,
+          "decode_time_s": 17.329173930000024,
+          "decode_cuda_time_s": 17.32941015625,
           "decode_steps": 128,
-          "decode_throughput_tps": 3.03693134405115,
-          "peak_vram_mb": 1434.994176,
-          "peak_reserved_vram_mb": 3202.351104,
+          "decode_throughput_tps": 7.386387863440402,
+          "peak_vram_mb": 1439.319552,
+          "peak_reserved_vram_mb": 3015.704576,
+          "gpu_before": {
+            "pstate": "P0",
+            "temperature_c": 67.0,
+            "graphics_clock_mhz": 2250.0,
+            "memory_clock_mhz": 8001.0,
+            "power_w": 26.19,
+            "utilization_pct": 4.0,
+            "memory_used_mb": 3427.0
+          },
+          "gpu_after": {
+            "pstate": "P0",
+            "temperature_c": 67.0,
+            "graphics_clock_mhz": 2250.0,
+            "memory_clock_mhz": 8001.0,
+            "power_w": 26.36,
+            "utilization_pct": 2.0,
+            "memory_used_mb": 3427.0
+          },
           "run_index": 2
         },
         {
-          "prefill_time_s": 5.995127392999848,
-          "decode_time_s": 40.30474036800001,
+          "prefill_time_s": 5.032722265000075,
+          "prefill_cuda_time_s": 5.03256494140625,
+          "decode_time_s": 15.857321894999814,
+          "decode_cuda_time_s": 15.85716796875,
           "decode_steps": 128,
-          "decode_throughput_tps": 3.175805099631053,
-          "peak_vram_mb": 1434.994176,
-          "peak_reserved_vram_mb": 3202.351104,
+          "decode_throughput_tps": 8.071980933953382,
+          "peak_vram_mb": 1439.319552,
+          "peak_reserved_vram_mb": 3015.704576,
+          "gpu_before": {
+            "pstate": "P0",
+            "temperature_c": 67.0,
+            "graphics_clock_mhz": 2250.0,
+            "memory_clock_mhz": 8001.0,
+            "power_w": 26.36,
+            "utilization_pct": 2.0,
+            "memory_used_mb": 3427.0
+          },
+          "gpu_after": {
+            "pstate": "P0",
+            "temperature_c": 67.0,
+            "graphics_clock_mhz": 2250.0,
+            "memory_clock_mhz": 8001.0,
+            "power_w": 26.83,
+            "utilization_pct": 6.0,
+            "memory_used_mb": 3427.0
+          },
           "run_index": 3
         },
         {
-          "prefill_time_s": 5.889641723000068,
-          "decode_time_s": 36.172832895000056,
+          "prefill_time_s": 5.940209072000016,
+          "prefill_cuda_time_s": 5.94007763671875,
+          "decode_time_s": 20.150256161000016,
+          "decode_cuda_time_s": 20.150552734375,
           "decode_steps": 128,
-          "decode_throughput_tps": 3.53856719963154,
-          "peak_vram_mb": 1434.994176,
-          "peak_reserved_vram_mb": 3202.351104,
+          "decode_throughput_tps": 6.352276565483008,
+          "peak_vram_mb": 1439.319552,
+          "peak_reserved_vram_mb": 3015.704576,
+          "gpu_before": {
+            "pstate": "P0",
+            "temperature_c": 67.0,
+            "graphics_clock_mhz": 2250.0,
+            "memory_clock_mhz": 8001.0,
+            "power_w": 26.83,
+            "utilization_pct": 6.0,
+            "memory_used_mb": 3427.0
+          },
+          "gpu_after": {
+            "pstate": "P0",
+            "temperature_c": 67.0,
+            "graphics_clock_mhz": 2250.0,
+            "memory_clock_mhz": 8001.0,
+            "power_w": 26.99,
+            "utilization_pct": 14.0,
+            "memory_used_mb": 3427.0
+          },
           "run_index": 4
         },
         {
-          "prefill_time_s": 5.788836937000042,
-          "decode_time_s": 36.7098528460001,
+          "prefill_time_s": 6.029555546999973,
+          "prefill_cuda_time_s": 6.02944091796875,
+          "decode_time_s": 15.664834505000044,
+          "decode_cuda_time_s": 15.66504296875,
           "decode_steps": 128,
-          "decode_throughput_tps": 3.486802318085207,
-          "peak_vram_mb": 1434.994176,
-          "peak_reserved_vram_mb": 3202.351104,
+          "decode_throughput_tps": 8.171168355410572,
+          "peak_vram_mb": 1439.319552,
+          "peak_reserved_vram_mb": 3015.704576,
+          "gpu_before": {
+            "pstate": "P0",
+            "temperature_c": 67.0,
+            "graphics_clock_mhz": 2250.0,
+            "memory_clock_mhz": 8001.0,
+            "power_w": 25.42,
+            "utilization_pct": 0.0,
+            "memory_used_mb": 3427.0
+          },
+          "gpu_after": {
+            "pstate": "P0",
+            "temperature_c": 67.0,
+            "graphics_clock_mhz": 2250.0,
+            "memory_clock_mhz": 8001.0,
+            "power_w": 29.2,
+            "utilization_pct": 11.0,
+            "memory_used_mb": 3427.0
+          },
           "run_index": 5
+        },
+        {
+          "prefill_time_s": 4.710251145000029,
+          "prefill_cuda_time_s": 4.71002734375,
+          "decode_time_s": 14.187577201000067,
+          "decode_cuda_time_s": 14.187732421875,
+          "decode_steps": 128,
+          "decode_throughput_tps": 9.02197733880718,
+          "peak_vram_mb": 1439.319552,
+          "peak_reserved_vram_mb": 3015.704576,
+          "gpu_before": {
+            "pstate": "P0",
+            "temperature_c": 67.0,
+            "graphics_clock_mhz": 2250.0,
+            "memory_clock_mhz": 8001.0,
+            "power_w": 28.87,
+            "utilization_pct": 0.0,
+            "memory_used_mb": 3427.0
+          },
+          "gpu_after": {
+            "pstate": "P3",
+            "temperature_c": 68.0,
+            "graphics_clock_mhz": 2250.0,
+            "memory_clock_mhz": 8001.0,
+            "power_w": 27.07,
+            "utilization_pct": 0.0,
+            "memory_used_mb": 3427.0
+          },
+          "run_index": 6
+        },
+        {
+          "prefill_time_s": 4.557146405999902,
+          "prefill_cuda_time_s": 4.55685009765625,
+          "decode_time_s": 14.322270909000054,
+          "decode_cuda_time_s": 14.3224541015625,
+          "decode_steps": 128,
+          "decode_throughput_tps": 8.937130208838973,
+          "peak_vram_mb": 1439.319552,
+          "peak_reserved_vram_mb": 3015.704576,
+          "gpu_before": {
+            "pstate": "P3",
+            "temperature_c": 68.0,
+            "graphics_clock_mhz": 2250.0,
+            "memory_clock_mhz": 7001.0,
+            "power_w": 24.52,
+            "utilization_pct": 0.0,
+            "memory_used_mb": 3427.0
+          },
+          "gpu_after": {
+            "pstate": "P0",
+            "temperature_c": 67.0,
+            "graphics_clock_mhz": 2250.0,
+            "memory_clock_mhz": 8001.0,
+            "power_w": 28.45,
+            "utilization_pct": 12.0,
+            "memory_used_mb": 3427.0
+          },
+          "run_index": 7
         }
       ],
       "summary": {
         "prefill_time_s": {
-          "count": 5,
-          "median": 5.995127392999848,
-          "mean": 6.427441591800016,
-          "std": 1.0103924028170108,
-          "min": 5.788836937000042,
-          "max": 8.20792673799997
+          "count": 7,
+          "median": 5.289880272999881,
+          "mean": 5.449121648285719,
+          "std": 0.7534932036511842,
+          "min": 4.557146405999902,
+          "max": 6.58408683000016
+        },
+        "prefill_cuda_time_s": {
+          "count": 7,
+          "median": 5.28978125,
+          "mean": 5.448900181361608,
+          "std": 0.7534447501006774,
+          "min": 4.55685009765625,
+          "max": 6.58355908203125
         },
         "decode_time_s": {
-          "count": 5,
-          "median": 36.89503689999992,
-          "mean": 38.44605425460004,
-          "std": 2.6336895379624807,
-          "min": 36.172832895000056,
-          "max": 42.147808264000105
+          "count": 7,
+          "median": 15.857321894999814,
+          "mean": 17.755383907000027,
+          "std": 4.468066107687901,
+          "min": 14.187577201000067,
+          "max": 26.77625274800016
+        },
+        "decode_cuda_time_s": {
+          "count": 7,
+          "median": 15.85716796875,
+          "mean": 17.755578822544642,
+          "std": 4.468186978196763,
+          "min": 14.187732421875,
+          "max": 26.77669140625
         },
         "decode_throughput_tps": {
-          "count": 5,
-          "median": 3.469301314074584,
-          "mean": 3.341481455094707,
-          "std": 0.2216406354698632,
-          "min": 3.03693134405115,
-          "max": 3.53856719963154
+          "count": 7,
+          "median": 8.071980933953382,
+          "mean": 7.531610928717669,
+          "std": 1.5209118481152835,
+          "min": 4.780355235090165,
+          "max": 9.02197733880718
         },
         "peak_vram_mb": {
-          "count": 5,
-          "median": 1434.994176,
-          "mean": 1434.994176,
+          "count": 7,
+          "median": 1439.319552,
+          "mean": 1439.3195519999997,
           "std": 0.0,
-          "min": 1434.994176,
-          "max": 1434.994176
+          "min": 1439.319552,
+          "max": 1439.319552
         },
         "peak_reserved_vram_mb": {
-          "count": 5,
-          "median": 3202.351104,
-          "mean": 3202.351104,
+          "count": 7,
+          "median": 3015.704576,
+          "mean": 3015.704576,
           "std": 0.0,
-          "min": 3202.351104,
-          "max": 3202.351104
+          "min": 3015.704576,
+          "max": 3015.704576
         }
       }
     }
   },
   "comparisons": {
-    "int4_decode_latency_change_vs_fp16_pct": 338.9229988644101,
-    "fused_decode_latency_change_vs_int4_pct": 51.71214294440101,
-    "int4_peak_vram_reduction_vs_fp16_pct": 56.47151756582941
+    "int4_decode_latency_change_vs_fp16_pct": 47.68263234617176,
+    "fused_decode_latency_change_vs_int4_pct": 0.96067414586265,
+    "int4_peak_vram_reduction_vs_fp16_pct": 56.483537914025085
+  },
+  "stability": {
+    "policy": {
+      "tukey_fence_multiplier": 1.5,
+      "max_retained_decode_cv_pct": 15.0,
+      "max_outlier_fraction_pct": 15.0,
+      "max_iqr_over_median_pct": 30.0
+    },
+    "by_mode": {
+      "fp16": {
+        "count": 7,
+        "retained_count": 7,
+        "outlier_count": 0,
+        "outlier_fraction_pct": 0.0,
+        "raw_cv_pct": 10.692928440467773,
+        "retained_cv_pct": 10.692928440467773,
+        "iqr_over_median_pct": 17.429991058267337
+      },
+      "int4": {
+        "count": 7,
+        "retained_count": 6,
+        "outlier_count": 1,
+        "outlier_fraction_pct": 14.285714285714285,
+        "raw_cv_pct": 11.8569872338257,
+        "retained_cv_pct": 4.937300555915885,
+        "iqr_over_median_pct": 7.966692243576756
+      },
+      "int4-fused-kv": {
+        "count": 7,
+        "retained_count": 6,
+        "outlier_count": 1,
+        "outlier_fraction_pct": 14.285714285714285,
+        "raw_cv_pct": 25.164570538665593,
+        "retained_cv_pct": 13.715516004526652,
+        "iqr_over_median_pct": 23.6241804467703
+      }
+    },
+    "passed": true
   },
   "diagnostic_profile": [
     {
@@ -342,15 +905,15 @@
       "num_runs": 3,
       "records": 591,
       "num_layers": 197,
-      "total_time_ms_mean": 112.60170683264732,
-      "total_time_ms_std": 49.87352867006417,
+      "total_time_ms_mean": 104.77567989875872,
+      "total_time_ms_std": 36.37445741074018,
       "peak_vram_mb_mean": 3267.7888,
       "peak_vram_mb_std": 0.0,
-      "avg_layer_time_ms_mean": 0.571582268186027,
-      "avg_layer_time_ms_std": 0.25316512015261,
+      "avg_layer_time_ms_mean": 0.5318562431409073,
+      "avg_layer_time_ms_std": 0.18464191579055925,
       "slowest_layer": "lm_head",
-      "slowest_layer_time_ms_mean": 9.782560030619303,
-      "slowest_layer_time_ms_std": 0.772173560047443
+      "slowest_layer_time_ms_mean": 8.788309097290039,
+      "slowest_layer_time_ms_std": 0.5252933091568958
     },
     {
       "quantization": "fp16",
@@ -358,15 +921,15 @@
       "num_runs": 3,
       "records": 75648,
       "num_layers": 197,
-      "total_time_ms_mean": 8820.013462114148,
-      "total_time_ms_std": 6081.431445631055,
+      "total_time_ms_mean": 4301.1007143907855,
+      "total_time_ms_std": 294.6231446063309,
       "peak_vram_mb_mean": 3271.252992,
       "peak_vram_mb_std": 0.0,
-      "avg_layer_time_ms_mean": 0.34977845265363844,
-      "avg_layer_time_ms_std": 0.241173518624328,
+      "avg_layer_time_ms_mean": 0.17057030117349248,
+      "avg_layer_time_ms_std": 0.011683976229629252,
       "slowest_layer": "lm_head",
-      "slowest_layer_time_ms_mean": 2.2916161694253483,
-      "slowest_layer_time_ms_std": 0.23310377260754794
+      "slowest_layer_time_ms_mean": 2.052960000311335,
+      "slowest_layer_time_ms_std": 0.01344583310464304
     },
     {
       "quantization": "int4",
@@ -374,15 +937,15 @@
       "num_runs": 3,
       "records": 591,
       "num_layers": 197,
-      "total_time_ms_mean": 336.25947776436806,
-      "total_time_ms_std": 205.62621504809778,
-      "peak_vram_mb_mean": 1423.673344,
+      "total_time_ms_mean": 209.09636266032854,
+      "total_time_ms_std": 42.05418129278288,
+      "peak_vram_mb_mean": 1421.379584,
       "peak_vram_mb_std": 0.0,
-      "avg_layer_time_ms_mean": 1.7069009023571986,
-      "avg_layer_time_ms_std": 1.0437878936451666,
+      "avg_layer_time_ms_mean": 1.0614028561437998,
+      "avg_layer_time_ms_std": 0.2134730014862075,
       "slowest_layer": "lm_head",
-      "slowest_layer_time_ms_mean": 9.418069203694662,
-      "slowest_layer_time_ms_std": 0.3971700990945198
+      "slowest_layer_time_ms_mean": 9.13476276397705,
+      "slowest_layer_time_ms_std": 0.020717587639554762
     },
     {
       "quantization": "int4",
@@ -390,15 +953,15 @@
       "num_runs": 3,
       "records": 75648,
       "num_layers": 197,
-      "total_time_ms_mean": 14184.131516613686,
-      "total_time_ms_std": 4190.864359610455,
-      "peak_vram_mb_mean": 1425.3992960000003,
-      "peak_vram_mb_std": 2.7847474288855413e-13,
-      "avg_layer_time_ms_mean": 0.5625052156017484,
-      "avg_layer_time_ms_std": 0.1661986183221151,
+      "total_time_ms_mean": 9607.949990927553,
+      "total_time_ms_std": 1358.3325423275164,
+      "peak_vram_mb_mean": 1423.105536,
+      "peak_vram_mb_std": 0.0,
+      "avg_layer_time_ms_mean": 0.38102593555391623,
+      "avg_layer_time_ms_std": 0.05386788318240467,
       "slowest_layer": "lm_head",
-      "slowest_layer_time_ms_mean": 2.1847432485471168,
-      "slowest_layer_time_ms_std": 0.11712302896036458
+      "slowest_layer_time_ms_mean": 2.001874666971465,
+      "slowest_layer_time_ms_std": 0.013444845428626149
     },
     {
       "quantization": "int4-fused-kv",
@@ -406,15 +969,15 @@
       "num_runs": 3,
       "records": 591,
       "num_layers": 197,
-      "total_time_ms_mean": 3436.0318566660085,
-      "total_time_ms_std": 1281.2588405260265,
-      "peak_vram_mb_mean": 1434.281984,
+      "total_time_ms_mean": 4139.960314422846,
+      "total_time_ms_std": 579.3629645284623,
+      "peak_vram_mb_mean": 1435.265024,
       "peak_vram_mb_std": 0.0,
-      "avg_layer_time_ms_mean": 17.441786074446743,
-      "avg_layer_time_ms_std": 6.5038519823656165,
-      "slowest_layer": "model.layers.13.self_attn.v_proj",
-      "slowest_layer_time_ms_mean": 77.2495346069336,
-      "slowest_layer_time_ms_std": 41.56546110027148
+      "avg_layer_time_ms_mean": 21.015026976765714,
+      "avg_layer_time_ms_std": 2.940928753951585,
+      "slowest_layer": "model.layers.0.self_attn.k_proj",
+      "slowest_layer_time_ms_mean": 197.31046295166016,
+      "slowest_layer_time_ms_std": 114.34661533722114
     },
     {
       "quantization": "int4-fused-kv",
@@ -422,15 +985,15 @@
       "num_runs": 3,
       "records": 75648,
       "num_layers": 197,
-      "total_time_ms_mean": 24773.186601338908,
-      "total_time_ms_std": 5610.8820642548735,
-      "peak_vram_mb_mean": 1435.930112,
-      "peak_vram_mb_std": 1.837470347920815,
-      "avg_layer_time_ms_mean": 0.982439189456651,
-      "avg_layer_time_ms_std": 0.22251277221822943,
+      "total_time_ms_mean": 10147.45053439339,
+      "total_time_ms_std": 271.6573633565371,
+      "peak_vram_mb_mean": 1435.9205546666665,
+      "peak_vram_mb_std": 1.8540241348389708,
+      "avg_layer_time_ms_mean": 0.40242110304542317,
+      "avg_layer_time_ms_std": 0.010773213965598718,
       "slowest_layer": "lm_head",
-      "slowest_layer_time_ms_mean": 2.3797959216559925,
-      "slowest_layer_time_ms_std": 0.13571716430226083
+      "slowest_layer_time_ms_mean": 2.000322666640083,
+      "slowest_layer_time_ms_std": 0.0069742633999917035
     }
   ]
 }

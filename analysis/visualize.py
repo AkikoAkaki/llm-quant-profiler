@@ -275,21 +275,18 @@ def plot_layerwise_latency(dfs: dict[str, pd.DataFrame], output_dir: str):
     print(f"Saved: {out}")
 
 
-def plot_memory_growth(dfs: dict[str, pd.DataFrame], output_dir: str):
-    """Figure 2: peak allocated VRAM by mode."""
+def plot_memory_growth(canonical: dict, output_dir: str):
+    """Figure 2: canonical E2E peak allocated VRAM by mode."""
     output_dir = Path(output_dir)
     fig, ax = plt.subplots(figsize=(10, 5))
     fig.suptitle("Peak allocated VRAM by mode",
                  fontsize=14, fontweight="bold")
     modes, values, errors = [], [], []
     for quant in MODE_ORDER:
-        key = f"{quant}_decode"
-        if key not in dfs:
-            continue
-        per_run = dfs[key].groupby("run_id")["mem_peak_mb"].max()
+        stats = canonical["modes"][quant]["summary"]["peak_vram_mb"]
         modes.append(quant)
-        values.append(float(per_run.mean()))
-        errors.append(float(per_run.std(ddof=1)) if len(per_run) > 1 else 0.0)
+        values.append(float(stats["median"]))
+        errors.append(float(stats["std"]))
 
     x = np.arange(len(modes))
     bars = ax.bar(
@@ -308,7 +305,7 @@ def plot_memory_growth(dfs: dict[str, pd.DataFrame], output_dir: str):
     ax.set_ylabel("Peak allocated VRAM (MB)")
     ax.text(
         0.01, 0.96,
-        "This is a memory comparison, not a KV-cache growth measurement.",
+        "Canonical E2E memory comparison, not a KV-cache growth measurement.",
         transform=ax.transAxes, va="top", fontsize=9, color="#555555",
     )
     ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, _: f"{x:.0f} MB"))

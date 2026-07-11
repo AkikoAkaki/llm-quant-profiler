@@ -21,10 +21,14 @@ class PublicArtifactTests(unittest.TestCase):
         config = self.canonical["config"]
         self.assertEqual(config["prompt_len"], 512)
         self.assertEqual(config["max_new_tokens"], 128)
-        self.assertEqual(config["warmup_runs"], 2)
-        self.assertEqual(config["repeats"], 5)
+        self.assertEqual(config["warmup_runs"], 8)
+        self.assertEqual(config["repeats"], 7)
         for mode in ("fp16", "int4", "int4-fused-kv"):
-            self.assertEqual(len(self.canonical["modes"][mode]["runs"]), 5)
+            self.assertEqual(len(self.canonical["modes"][mode]["runs"]), 7)
+        environment = self.canonical["environment_by_mode"]["fp16"]
+        self.assertFalse(environment["git_dirty"])
+        self.assertTrue(environment["host_power_plan"])
+        self.assertTrue(self.canonical["stability"]["passed"])
 
     def test_public_numbers_match_canonical_rounding(self):
         comparisons = self.canonical["comparisons"]
@@ -46,6 +50,9 @@ class PublicArtifactTests(unittest.TestCase):
             "34.8%",
             "59.6%",
             "1.27×",
+            "338.9%",
+            "4.39×",
+            "51.7% slower",
             "4.5 bytes/weight",
             "full FP16 weight tensor to VRAM",
         ):
